@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -18,12 +20,14 @@ class UserPublic(BaseModel):
     name: str
     weight_kg: float | None = None
     height_cm: float | None = None
+    sex: Literal["male", "female"] | None = None
 
 
 class ProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     weight_kg: float = Field(gt=20, le=500)
     height_cm: float = Field(gt=50, le=260)
+    sex: Literal["male", "female"]
 
 
 class OkResponse(BaseModel):

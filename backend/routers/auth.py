@@ -24,6 +24,6 @@ async def update_profile(body: ProfileUpdate, user: dict = Depends(current_user)
         raise HTTPException(status_code=422, detail="Name is required")
     await db.users.update_one(
         {"id": user["id"]},
-        {"$set": {"name": name, "weight_kg": body.weight_kg, "height_cm": body.height_cm}},
+        {"$set": {"name": name, "weight_kg": body.weight_kg, "height_cm": body.height_cm, "sex": body.sex}},
     )
-    return UserPublic(id=user["id"], email=user["email"], name=name, weight_kg=body.weight_kg, height_cm=body.height_cm)
+    return UserPublic(id=user["id"], email=user["email"], name=name, weight_kg=body.weight_kg, height_cm=body.height_cm, sex=body.sex)

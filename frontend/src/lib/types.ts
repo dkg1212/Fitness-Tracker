@@ -12,8 +12,9 @@ export const EQUIPMENT: Equipment[] = ["Barbell", "Dumbbell", "Cable", "Machine"
 // models/auth.py
 export interface LoginRequest { email: string; password: string }
 export interface RegisterRequest extends LoginRequest { name: string; weight_kg: number; height_cm: number }
-export interface ProfileUpdate { name: string; weight_kg: number; height_cm: number }
-export interface User { id: string; email: string; name: string; weight_kg: number | null; height_cm: number | null }
+export type Sex = "male" | "female";
+export interface ProfileUpdate { name: string; weight_kg: number; height_cm: number; sex: Sex }
+export interface User { id: string; email: string; name: string; weight_kg: number | null; height_cm: number | null; sex: Sex | null }
 
 // models/exercise.py
 export interface ExerciseCreate { name: string; muscle_group: MuscleGroup; equipment: Equipment }
