@@ -1,0 +1,40 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { ApiError, apiGet, apiPost } from "./api";
+import type { Exercise, Template, User, Workout, WorkoutStart } from "./types";
+
+export const useMe = () =>
+  useQuery({ queryKey: ["me"], queryFn: () => apiGet<User>("/auth/me"), retry: false, staleTime: 5 * 60_000 });
+
+export const useExercises = () =>
+  useQuery({ queryKey: ["exercises"], queryFn: () => apiGet<Exercise[]>("/exercises"), staleTime: 10 * 60_000 });
+
+export const useTemplates = () =>
+  useQuery({ queryKey: ["templates"], queryFn: () => apiGet<Template[]>("/templates") });
+
+export const useActiveWorkout = () =>
+  useQuery({ queryKey: ["workout", "active"], queryFn: () => apiGet<Workout | null>("/workouts/active") });
+
+/** Start a workout (empty or from a template) and jump into the logger. */
+export function useStartWorkout() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  return useMutation({
+    mutationFn: (body: WorkoutStart) => apiPost<Workout>("/workouts", body),
+    onSuccess: (w) => {
+      qc.setQueryData(["workout", "active"], w);
+      qc.invalidateQueries({ queryKey: ["today"] });
+      navigate("/workout/active");
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) {
+        toast.info("You already have a workout in progress — resuming it.");
+        qc.invalidateQueries({ queryKey: ["workout", "active"] });
+        navigate("/workout/active");
+      } else {
+        toast.error("Couldn't start workout. Check your connection.");
+      }
+    },
+  });
+}

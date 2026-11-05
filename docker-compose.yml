@@ -1,0 +1,17 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: ironcore-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - ironcore_mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  ironcore_mongodb_data:
