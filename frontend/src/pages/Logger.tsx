@@ -4,13 +4,13 @@ import { Dumbbell, Play, Plus, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
 import WorkoutEditor from "@/components/WorkoutEditor";
+import StartWorkoutButton from "@/components/StartWorkoutButton";
 import { apiGet } from "@/lib/api";
-import { useActiveWorkout, useStartWorkout, useTemplates } from "@/lib/hooks";
+import { useActiveWorkout, useTemplates } from "@/lib/hooks";
 import type { Workout } from "@/lib/types";
 import { readLocalDraft } from "@/lib/useAutosaveWorkout";
 
 function NoActive() {
-  const start = useStartWorkout();
   const templates = useTemplates();
   return (
     <div className="mx-auto max-w-3xl">
@@ -18,29 +18,22 @@ function NoActive() {
       <div className="rounded-2xl border border-border bg-surface-card/70 p-6 animate-fade-up">
         <Dumbbell className="size-8 text-volt" />
         <p className="mt-3 text-muted-foreground">No session in progress. Start from a template or log freestyle.</p>
-        <Button onClick={() => start.mutate({ template_id: null, name: null })} disabled={start.isPending} className="mt-5 h-12 px-6 text-base font-bold" data-testid="logger-start-empty-button">
+        <StartWorkoutButton body={{ template_id: null, name: null }} className="mt-5 h-12 px-6 text-base font-bold" testid="logger-start-empty-button">
           <Plus className="size-4" /> Start empty workout
-        </Button>
+        </StartWorkoutButton>
       </div>
       {!templates.isError && (templates.data?.length ?? 0) > 0 && (
         <div className="mt-6">
           <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">Start from template</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {templates.data?.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => start.mutate({ template_id: t.id, name: null })}
-                disabled={start.isPending}
-                className="flex min-h-16 items-center justify-between rounded-xl border border-border bg-surface/70 px-4 py-3 text-left transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-volt"
-                data-testid={`logger-start-template-${t.id}`}
-              >
+              <StartWorkoutButton key={t.id} body={{ template_id: t.id, name: null }} className="flex min-h-16 w-full items-center justify-between rounded-xl border border-border bg-surface/70 px-4 py-3 text-left transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-volt" testid={`logger-start-template-${t.id}`}>
                 <span>
                   <span className="block font-heading font-bold">{t.name}</span>
                   <span className="text-xs text-muted-foreground">{t.exercises.length} exercises</span>
                 </span>
                 <Play className="size-4 text-volt" />
-              </button>
+              </StartWorkoutButton>
             ))}
           </div>
         </div>

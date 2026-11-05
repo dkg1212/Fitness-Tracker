@@ -79,12 +79,14 @@ export default function History() {
                       <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{fmtDate(w.date, "EEE · dd/MM/yyyy")}</p>
                       <h3 className="font-heading text-xl font-bold">{w.name}</h3>
                     </div>
-                    <div className="flex gap-1">
-                      <Link to={`/workout/${w.id}`} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10")} aria-label="Edit workout" data-testid={`history-edit-${w.id}`}>
+                    <div className="flex items-center gap-1">
+                      <Link to={`/workout/${w.id}`} className={cn(buttonVariants({ variant: "ghost" }), "h-9 gap-1.5 px-2.5 text-xs")} aria-label="Edit workout" data-testid={`history-edit-${w.id}`}>
                         <Pencil className="size-4" />
+                        Edit
                       </Link>
-                      <Button variant="ghost" size="icon" className="size-10 hover:text-crimson" onClick={() => setToDelete(w)} aria-label="Delete workout" data-testid={`history-delete-${w.id}`}>
+                      <Button variant="ghost" className="h-9 gap-1.5 px-2.5 text-xs hover:text-crimson" onClick={() => setToDelete(w)} aria-label="Delete workout" data-testid={`history-delete-${w.id}`}>
                         <Trash2 className="size-4" />
+                        Delete
                       </Button>
                     </div>
                   </div>

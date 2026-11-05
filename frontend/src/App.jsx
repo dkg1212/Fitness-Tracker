@@ -18,8 +18,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/sign-up/*" element={<Login />} />
-        <Route path="/profile" element={<Profile />} />
         <Route element={<AppShell />}>
+          <Route path="/profile" element={<Profile />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/workout/active" element={<Logger />} />
           <Route path="/workout/:id" element={<Logger />} />

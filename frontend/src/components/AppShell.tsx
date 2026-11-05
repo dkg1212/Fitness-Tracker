@@ -49,7 +49,7 @@ export default function AppShell() {
 
   if (isLoaded && !isSignedIn) return <Navigate to="/login" replace />;
   if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to="/login" replace />;
-  if (me.data && (!me.data.weight_kg || !me.data.height_cm || !me.data.sex)) return <Navigate to="/profile?onboarding=1" replace />;
+  if (me.data && pathname !== "/profile" && (!me.data.weight_kg || !me.data.height_cm || !me.data.sex)) return <Navigate to="/profile?onboarding=1" replace />;
 
   const onLogger = pathname.startsWith("/workout");
   const showResume = !!active.data && !active.isError && !onLogger;

@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { BedDouble, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
+import StartWorkoutButton from "@/components/StartWorkoutButton";
 import { apiGet } from "@/lib/api";
-import { useActiveWorkout, useMe, useStartWorkout } from "@/lib/hooks";
+import { useActiveWorkout, useMe } from "@/lib/hooks";
 import type { AnalyticsSummary, TodayInfo, WorkoutSummary } from "@/lib/types";
 import { fmtDate, fmtKg, fmtVolume, MUSCLE_COLORS, WEEKDAYS, WEEKDAYS_SHORT } from "@/lib/workout";
 import { cn } from "@/lib/utils";
@@ -28,7 +29,6 @@ export default function Dashboard() {
   const summary = useQuery({ queryKey: ["analytics", "summary"], queryFn: () => apiGet<AnalyticsSummary>("/analytics/summary") });
   const recent = useQuery({ queryKey: ["workouts", "recent"], queryFn: () => apiGet<WorkoutSummary[]>("/workouts?limit=5") });
   const active = useActiveWorkout();
-  const start = useStartWorkout();
 
   const t = today.isError ? undefined : today.data;
   const s = summary.isError ? undefined : summary.data;
@@ -75,13 +75,13 @@ export default function Dashboard() {
             ) : (
               <>
                 {t?.template && (
-                  <Button onClick={() => start.mutate({ template_id: t.template!.id, name: null })} disabled={start.isPending} className="h-12 px-6 text-base font-bold" data-testid="dashboard-start-workout-button">
+                  <StartWorkoutButton body={{ template_id: t.template!.id, name: null }} className="h-12 px-6 text-base font-bold" testid="dashboard-start-workout-button">
                     <Play className="size-4" /> Start {t.template.name}
-                  </Button>
+                  </StartWorkoutButton>
                 )}
-                <Button variant="outline" onClick={() => start.mutate({ template_id: null, name: null })} disabled={start.isPending} className="h-12 px-5" data-testid="dashboard-quick-workout-button">
+                <StartWorkoutButton body={{ template_id: null, name: null }} variant="outline" className="h-12 px-5" testid="dashboard-quick-workout-button">
                   <Plus className="size-4" /> Quick empty workout
-                </Button>
+                </StartWorkoutButton>
               </>
             )}
           </div>

@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
 import TemplateEditor from "@/components/TemplateEditor";
+import StartWorkoutButton from "@/components/StartWorkoutButton";
 import { apiDelete } from "@/lib/api";
-import { useStartWorkout, useTemplates } from "@/lib/hooks";
+import { useTemplates } from "@/lib/hooks";
 import type { Template } from "@/lib/types";
 import { fmtClock, MUSCLE_COLORS } from "@/lib/workout";
 
 export default function Templates() {
   const qc = useQueryClient();
   const templates = useTemplates();
-  const start = useStartWorkout();
   const [editing, setEditing] = useState<Template | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -93,9 +93,9 @@ export default function Templates() {
                   </li>
                 ))}
               </ul>
-              <Button onClick={() => start.mutate({ template_id: t.id, name: null })} disabled={start.isPending} className="mt-5 h-11 font-bold" data-testid={`template-start-${t.id}`}>
+              <StartWorkoutButton body={{ template_id: t.id, name: null }} className="mt-5 h-11 w-full font-bold" testid={`template-start-${t.id}`}>
                 <Play className="size-4" /> Start workout
-              </Button>
+              </StartWorkoutButton>
             </article>
           );
         })}
