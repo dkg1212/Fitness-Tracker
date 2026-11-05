@@ -12,5 +12,5 @@ const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!clerkKey) throw new Error("VITE_CLERK_PUBLISHABLE_KEY is missing from frontend/.env.local");
 function ApiTokenBridge({ children }) { const { getToken } = useAuth(); setApiTokenGetter(() => getToken()); return children; }
 createRoot(document.getElementById("root")).render(
-  <React.StrictMode><ClerkProvider publishableKey={clerkKey} signInUrl="/login" signUpUrl="/sign-up" signInFallbackRedirectUrl="/" signUpFallbackRedirectUrl="/"><ApiTokenBridge><QueryClientProvider client={queryClient}><BrowserRouter><App /></BrowserRouter></QueryClientProvider></ApiTokenBridge></ClerkProvider></React.StrictMode>,
+  <React.StrictMode><ClerkProvider publishableKey={clerkKey} signInUrl="/login" signUpUrl="/sign-up" signInFallbackRedirectUrl="/" signUpFallbackRedirectUrl="/profile?onboarding=1"><ApiTokenBridge><QueryClientProvider client={queryClient}><BrowserRouter><App /></BrowserRouter></QueryClientProvider></ApiTokenBridge></ClerkProvider></React.StrictMode>,
 );

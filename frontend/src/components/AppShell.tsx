@@ -1,5 +1,5 @@
 import { NavLink, Navigate, Outlet, useLocation, Link } from "react-router-dom";
-import { useAuth, useClerk } from "@clerk/react";
+import { useAuth, useClerk, useUser } from "@clerk/react";
 import { CalendarDays, Dumbbell, History, Layers, LayoutDashboard, LogOut, PlayCircle, TrendingUp, UserRound, Zap } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { useActiveWorkout, useMe } from "@/lib/hooks";
@@ -40,12 +40,14 @@ function Brand() {
 export default function AppShell() {
   const { isLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
+  const { user } = useUser();
   const me = useMe();
   const active = useActiveWorkout();
   const { pathname } = useLocation();
 
   if (isLoaded && !isSignedIn) return <Navigate to="/login" replace />;
   if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to="/login" replace />;
+  if (me.data && (!me.data.weight_kg || !me.data.height_cm) && pathname !== "/profile") return <Navigate to="/profile?onboarding=1" replace />;
 
   const onLogger = pathname.startsWith("/workout");
   const showResume = !!active.data && !active.isError && !onLogger;
@@ -75,7 +77,7 @@ export default function AppShell() {
           ))}
         </nav>
         <div className="rounded-lg border border-border bg-surface p-3">
-          <p className="truncate text-sm font-semibold" data-testid="sidebar-user-name">{me.data?.name ?? "Athlete"}</p>
+          <p className="truncate text-sm font-semibold" data-testid="sidebar-user-name">{user?.username ?? me.data?.name ?? "Athlete"}</p>
           <p className="truncate text-xs text-muted-foreground" data-testid="sidebar-user-email">{me.data?.email ?? ""}</p>
           <button
             type="button"
@@ -98,6 +100,9 @@ export default function AppShell() {
           <NavLink to="/exercises" data-testid="mobile-exercises-link" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:text-foreground" aria-label="Exercise library">
             <Dumbbell className="size-5" />
           </NavLink>
+          <NavLink to="/profile" data-testid="mobile-profile-link" className="flex max-w-28 items-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold text-foreground hover:bg-surface-active" aria-label="Edit profile">
+            <UserRound className="size-4 shrink-0 text-volt" /><span className="truncate">{user?.username ?? me.data?.name ?? "Profile"}</span>
+          </NavLink>
           <button type="button" onClick={() => void signOut({ redirectUrl: "/login" })} data-testid="mobile-logout-button" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:text-crimson" aria-label="Log out">
             <LogOut className="size-5" />
           </button>
@@ -105,6 +110,12 @@ export default function AppShell() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
+        <header className="mb-7 hidden h-14 items-center justify-end border-b border-border lg:flex">
+          <Link to="/profile" data-testid="topbar-profile-link" className="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-surface-active">
+            <span className="grid size-8 place-items-center rounded-full bg-volt text-sm font-extrabold text-volt-ink">{(user?.username ?? me.data?.name ?? "A").slice(0, 1).toUpperCase()}</span>
+            <span className="text-right leading-tight"><span className="block text-sm font-semibold">{user?.username ?? me.data?.name ?? "Athlete"}</span><span className="block text-xs text-muted-foreground">View profile</span></span>
+          </Link>
+        </header>
         <Outlet />
       </main>
 
