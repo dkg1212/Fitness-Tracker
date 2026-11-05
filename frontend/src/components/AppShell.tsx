@@ -78,18 +78,6 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="rounded-lg border border-border bg-surface p-3">
-          <p className="truncate text-sm font-semibold" data-testid="sidebar-user-name">{user?.username ?? me.data?.name ?? "Athlete"}</p>
-          <p className="truncate text-xs text-muted-foreground" data-testid="sidebar-user-email">{me.data?.email ?? ""}</p>
-          <button
-            type="button"
-            onClick={() => void signOut({ redirectUrl: "/login" })}
-            data-testid="sidebar-logout-button"
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-crimson hover:text-crimson"
-          >
-            <LogOut className="size-3.5" /> Log out
-          </button>
-        </div>
       </aside>
 
       {/* Mobile top bar */}

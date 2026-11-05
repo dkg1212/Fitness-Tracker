@@ -71,12 +71,14 @@ export default function Templates() {
                   <h3 className="font-heading text-2xl font-extrabold tracking-tight">{t.name}</h3>
                   <p className="font-mono text-xs text-muted-foreground">{t.exercises.length} exercises · {sets} sets</p>
                 </div>
-                <div className="flex">
-                  <Button variant="ghost" size="icon" className="size-10" onClick={() => openEditor(t)} aria-label="Edit template" data-testid={`template-edit-${t.id}`}>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" className="h-9 gap-1.5 px-2.5 text-xs" onClick={() => openEditor(t)} aria-label="Edit template" data-testid={`template-edit-${t.id}`}>
                     <Pencil className="size-4" />
+                    Edit
                   </Button>
-                  <Button variant="ghost" size="icon" className="size-10 hover:text-crimson" onClick={() => setToDelete(t)} aria-label="Delete template" data-testid={`template-delete-${t.id}`}>
+                  <Button variant="ghost" className="h-9 gap-1.5 px-2.5 text-xs hover:text-crimson" onClick={() => setToDelete(t)} aria-label="Delete template" data-testid={`template-delete-${t.id}`}>
                     <Trash2 className="size-4" />
+                    Delete
                   </Button>
                 </div>
               </div>

@@ -130,7 +130,7 @@ export default function Exercises() {
               <div className="space-y-1.5">
                 <Label>Muscle group</Label>
                 <Select value={mg} onValueChange={(v: string) => setMg(v as MuscleGroup)}>
-                  <SelectTrigger className="h-11 w-full" data-testid="exercise-create-muscle-select"><SelectValue>{(v) => v as string}</SelectValue></SelectTrigger>
+                  <SelectTrigger className="h-11 w-full" data-testid="exercise-create-muscle-select"><SelectValue placeholder="Choose a muscle group" /></SelectTrigger>
                   <SelectContent>
                     {MUSCLE_GROUPS.map((g) => <SelectItem key={g} value={g} data-testid={`exercise-create-muscle-option-${slug(g)}`}>{g}</SelectItem>)}
                   </SelectContent>
@@ -139,7 +139,7 @@ export default function Exercises() {
               <div className="space-y-1.5">
                 <Label>Equipment</Label>
                 <Select value={eq} onValueChange={(v: string) => setEq(v as Equipment)}>
-                  <SelectTrigger className="h-11 w-full" data-testid="exercise-create-equipment-select"><SelectValue>{(v) => v as string}</SelectValue></SelectTrigger>
+                  <SelectTrigger className="h-11 w-full" data-testid="exercise-create-equipment-select"><SelectValue placeholder="Choose equipment" /></SelectTrigger>
                   <SelectContent>
                     {EQUIPMENT.map((g) => <SelectItem key={g} value={g} data-testid={`exercise-create-equipment-option-${slug(g)}`}>{g}</SelectItem>)}
                   </SelectContent>

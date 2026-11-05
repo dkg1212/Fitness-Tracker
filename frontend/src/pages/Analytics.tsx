@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Dumbbell, Flame, Trophy } from "lucide-react";
@@ -40,12 +39,6 @@ export default function Analytics() {
   });
   const progress = progressQ.isError ? undefined : progressQ.data;
 
-  const exerciseLabels = useMemo(() => {
-    const m: Record<string, string> = Object.fromEntries((s?.prs ?? []).map((p) => [p.exercise_id, p.exercise_name]));
-    if (progress && !m[progress.exercise_id]) m[progress.exercise_id] = progress.exercise_name;
-    return m;
-  }, [s, progress]);
-
   const weekly = (s?.weekly_volume ?? []).map((w) => ({ ...w, label: fmtDate(w.week_start, "dd/MM") }));
   const points = (progress?.points ?? []).map((p) => ({ ...p, label: fmtDate(p.date, "dd/MM") }));
   const best = points.length ? Math.max(...points.map((p) => p.e1rm)) : 0;
@@ -76,7 +69,7 @@ export default function Analytics() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <Select value={selected} onValueChange={(v: string) => setParams({ exercise: v })}>
               <SelectTrigger className="h-11 w-full sm:w-72" data-testid="analytics-exercise-select">
-                <SelectValue>{(v) => exerciseLabels[v as string] ?? "Pick an exercise"}</SelectValue>
+                <SelectValue placeholder="Pick an exercise" />
               </SelectTrigger>
               <SelectContent>
                 {(s?.prs ?? []).map((p) => (
