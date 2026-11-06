@@ -16,7 +16,8 @@ export default function App() {
   return (
     <>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        {/* Clerk uses nested URLs for recovery and verification steps, e.g. /login/forgot-password. */}
+        <Route path="/login/*" element={<Login />} />
         <Route path="/sign-up/*" element={<Login />} />
         <Route element={<AppShell />}>
           <Route path="/profile" element={<Profile />} />
