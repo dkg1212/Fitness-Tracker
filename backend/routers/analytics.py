@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
+from lib.exercise_meta import EXERCISE_META
 from lib.training import epley, exercise_bests, set_volume, working_sets, workout_volume
 from models.analytics import (
     AnalyticsSummary,
@@ -13,6 +14,8 @@ from models.analytics import (
     ExerciseProgressPoint,
     MuscleWorkload,
     PersonalRecord,
+    SubMuscleBreakdown,
+    SubMuscleWorkload,
     WeeklyVolume,
 )
 from models.workout import Workout
@@ -113,3 +116,65 @@ async def exercise_progress(exercise_id: str, user: dict = Depends(current_user)
         doc = await db.exercises.find_one({"id": exercise_id}, {"_id": 0, "name": 1})
         name = doc["name"] if doc else ""
     return ExerciseProgress(exercise_id=exercise_id, exercise_name=name, points=points)
+
+
+@router.get("/sub-muscle", response_model=SubMuscleBreakdown)
+async def sub_muscle_breakdown(user: dict = Depends(current_user)):
+    """
+    Count primary and secondary working-set volume by detailed sub-muscle for the last 4 weeks.
+
+    Rules:
+    - Only completed, non-warmup sets with reps are counted (same definition as workload/volume).
+    - Primary muscles get FULL set/volume credit.
+    - Secondary muscles get 0.5 set credit and 0.5 volume credit — they are helpers, not the target.
+    - Exercises with no metadata in EXERCISE_META are attributed to their main muscle_group only.
+    - Existing workout/PR/volume calculations are not touched.
+    """
+    workouts = await _completed(user["id"])
+    today = date.fromisoformat(today_iso())
+    cutoff = (today - timedelta(days=27)).isoformat()
+
+    primary_sets: dict[str, int] = defaultdict(int)
+    primary_vol: dict[str, float] = defaultdict(float)
+    secondary_sets: dict[str, float] = defaultdict(float)
+    secondary_vol: dict[str, float] = defaultdict(float)
+
+    for w in workouts:
+        if w.date < cutoff:
+            continue
+        for ex in w.exercises:
+            meta = EXERCISE_META.get(ex.exercise_name)
+            ws = working_sets(ex)
+            if not ws:
+                continue
+            n_sets = len(ws)
+            vol = sum(set_volume(s) for s in ws)
+
+            if meta:
+                ex_type, pm, sm = meta
+                # Primary muscles — full credit
+                for muscle in pm:
+                    primary_sets[muscle] += n_sets
+                    primary_vol[muscle] += vol
+                # Secondary muscles — half credit (assisting, not primary target)
+                for muscle in sm:
+                    secondary_sets[muscle] += n_sets * 0.5
+                    secondary_vol[muscle] += vol * 0.5
+            else:
+                # No detailed meta — fall back to main muscle group
+                primary_sets[ex.muscle_group] += n_sets
+                primary_vol[ex.muscle_group] += vol
+
+    primary_out = sorted(
+        [SubMuscleWorkload(muscle=m, sets=n, volume=round(primary_vol[m], 1)) for m, n in primary_sets.items()],
+        key=lambda x: x.sets,
+        reverse=True,
+    )
+    secondary_out = sorted(
+        [SubMuscleWorkload(muscle=m, sets=round(n, 1), volume=round(secondary_vol[m], 1)) for m, n in secondary_sets.items()
+         if m not in primary_sets],  # exclude muscles already counted as primary
+        key=lambda x: x.sets,
+        reverse=True,
+    )
+
+    return SubMuscleBreakdown(primary=primary_out, secondary=secondary_out)

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Zap, Target } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useExercises } from "@/lib/hooks";
@@ -85,9 +85,34 @@ export default function ExercisePicker({
               data-testid={`exercise-picker-option-${slug(e.name)}`}
               className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-surface-active active:bg-surface-active active:scale-[0.98]"
             >
-              <span>
-                <span className="block text-base font-semibold">{e.name}</span>
-                <span className="text-xs text-muted-foreground">{e.equipment}{e.is_custom ? " · Custom" : ""}</span>
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="block text-base font-semibold">{e.name}</span>
+                  {e.exercise_type && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                        e.exercise_type === "Compound"
+                          ? "bg-volt/15 text-volt"
+                          : "bg-cyan-focus/15 text-cyan-focus",
+                      )}
+                    >
+                      {e.exercise_type === "Compound" ? (
+                        <Zap className="size-2.5" />
+                      ) : (
+                        <Target className="size-2.5" />
+                      )}
+                      {e.exercise_type}
+                    </span>
+                  )}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {e.equipment}
+                  {e.is_custom ? " · Custom" : ""}
+                  {(e.primary_muscles?.length ?? 0) > 0 && (
+                    <> · {e.primary_muscles.slice(0, 2).join(", ")}</>
+                  )}
+                </span>
               </span>
               <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="size-2 rounded-full" style={{ background: MUSCLE_COLORS[e.muscle_group] }} />

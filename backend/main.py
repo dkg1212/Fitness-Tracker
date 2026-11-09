@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from lib.auth import validate_auth_config
 from lib.db import client, ensure_indexes
+from lib.exercise_meta import EXERCISE_META
+from lib.db import db
 from routers import analytics, auth, exercises, splits, templates, workouts
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
@@ -15,6 +17,17 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 async def lifespan(app: FastAPI):
     validate_auth_config()
     await ensure_indexes()
+    # Auto-migrate: apply exercise_type/primary_muscles/secondary_muscles to all
+    # built-in exercises that are missing this data. Safe to run on every startup.
+    for name, (ex_type, primary, secondary) in EXERCISE_META.items():
+        await db.exercises.update_one(
+            {"name": name, "is_custom": False},
+            {"$set": {
+                "exercise_type": ex_type,
+                "primary_muscles": primary,
+                "secondary_muscles": secondary,
+            }},
+        )
     yield
     client.close()
 

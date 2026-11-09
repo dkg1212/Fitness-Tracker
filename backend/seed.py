@@ -12,6 +12,7 @@ import os
 
 from lib.dates import today_iso
 from lib.db import db, ensure_indexes
+from lib.exercise_meta import EXERCISE_META
 from models.template import Template, TemplateExercise
 from models.workout import Workout, WorkoutExercise, WorkoutSet
 
@@ -118,9 +119,19 @@ async def seed() -> None:
     meta = {}
     for name, mg, eq in EXERCISES:
         meta[name] = (ex_id(name), mg)
+        ex_type, primary, secondary = EXERCISE_META.get(name, (None, [], []))
         await db.exercises.update_one(
             {"id": ex_id(name)},
-            {"$set": {"id": ex_id(name), "name": name, "muscle_group": mg, "equipment": eq, "is_custom": False}},
+            {"$set": {
+                "id": ex_id(name),
+                "name": name,
+                "muscle_group": mg,
+                "equipment": eq,
+                "is_custom": False,
+                "exercise_type": ex_type,
+                "primary_muscles": primary,
+                "secondary_muscles": secondary,
+            }},
             upsert=True,
         )
 

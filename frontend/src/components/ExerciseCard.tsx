@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Check, MoreVertical, Plus, StickyNote, Timer, Trash2, Gauge } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, MoreVertical, Plus, StickyNote, Timer, Trash2, Gauge, Zap, Target } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { SetType, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { fmtClock, fmtKg, MUSCLE_COLORS, newSet } from "@/lib/workout";
+import { EXERCISE_META } from "@/lib/exerciseMeta";
 import { cn } from "@/lib/utils";
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
@@ -94,6 +95,7 @@ export default function ExerciseCard({
 }) {
   const [showNotes, setShowNotes] = useState(ex.notes.length > 0);
   const activeIdx = ex.sets.findIndex((s) => !s.completed);
+  const meta = EXERCISE_META[ex.exercise_name];
 
   const setAt = (si: number, patch: Partial<WorkoutSet>) =>
     onChange({ ...ex, sets: ex.sets.map((s, i) => (i === si ? { ...s, ...patch } : s)) });
@@ -153,6 +155,28 @@ export default function ExerciseCard({
               <span className="size-2 rounded-full" style={{ background: MUSCLE_COLORS[ex.muscle_group] ?? "#94A3B8" }} />
               {ex.muscle_group}
             </span>
+            {meta && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                  meta.exerciseType === "Compound"
+                    ? "bg-volt/15 text-volt"
+                    : "bg-cyan-focus/15 text-cyan-focus",
+                )}
+              >
+                {meta.exerciseType === "Compound" ? (
+                  <Zap className="size-2.5" />
+                ) : (
+                  <Target className="size-2.5" />
+                )}
+                {meta.exerciseType}
+              </span>
+            )}
+            {meta && meta.primaryMuscles.length > 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                {meta.primaryMuscles.join(", ")}
+              </span>
+            )}
             <button
               type="button"
               onClick={cycleRest}

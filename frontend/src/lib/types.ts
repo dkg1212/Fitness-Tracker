@@ -17,8 +17,29 @@ export interface ProfileUpdate { name: string; weight_kg: number; height_cm: num
 export interface User { id: string; email: string; name: string; weight_kg: number | null; height_cm: number | null; sex: Sex | null }
 
 // models/exercise.py
-export interface ExerciseCreate { name: string; muscle_group: MuscleGroup; equipment: Equipment }
-export interface Exercise extends ExerciseCreate { id: string; is_custom: boolean }
+export interface ExerciseCreate {
+  name: string;
+  muscle_group: MuscleGroup;
+  equipment: Equipment;
+  exercise_type?: "Compound" | "Isolation" | null;
+  primary_muscles?: string[];
+  secondary_muscles?: string[];
+}
+export interface ExerciseUpdate {
+  name: string;
+  muscle_group: MuscleGroup;
+  equipment: Equipment;
+  exercise_type: "Compound" | "Isolation" | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+}
+export interface Exercise extends ExerciseCreate {
+  id: string;
+  is_custom: boolean;
+  exercise_type: "Compound" | "Isolation" | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+}
 
 // models/template.py
 export interface TemplateExercise {
@@ -134,3 +155,7 @@ export interface AnalyticsSummary {
 }
 export interface ExerciseProgressPoint { date: string; top_weight: number; e1rm: number; volume: number; best_set: string }
 export interface ExerciseProgress { exercise_id: string; exercise_name: string; points: ExerciseProgressPoint[] }
+
+// models/analytics.py — sub-muscle breakdown
+export interface SubMuscleWorkload { muscle: string; sets: number; volume: number }
+export interface SubMuscleBreakdown { primary: SubMuscleWorkload[]; secondary: SubMuscleWorkload[] }

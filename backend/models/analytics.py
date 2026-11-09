@@ -46,3 +46,15 @@ class ExerciseProgress(BaseModel):
     exercise_id: str
     exercise_name: str
     points: list[ExerciseProgressPoint]
+
+
+# Sub-muscle breakdown models
+class SubMuscleWorkload(BaseModel):
+    muscle: str
+    sets: float  # float because secondary muscles use 0.5x credit
+    volume: float
+
+
+class SubMuscleBreakdown(BaseModel):
+    primary: list[SubMuscleWorkload]
+    secondary: list[SubMuscleWorkload]

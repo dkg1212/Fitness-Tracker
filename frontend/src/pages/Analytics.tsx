@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Dumbbell, Flame, Trophy, TrendingUp } from "lucide-react";
+import { Activity, Dumbbell, Flame, Trophy, TrendingUp, Target, Layers } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import PageHeader from "@/components/PageHeader";
 import { apiGet } from "@/lib/api";
-import type { AnalyticsSummary, ExerciseProgress } from "@/lib/types";
+import type { AnalyticsSummary, ExerciseProgress, SubMuscleBreakdown } from "@/lib/types";
 import { fmtDate, fmtKg, fmtVolume, MUSCLE_COLORS } from "@/lib/workout";
 
 const AXIS = { stroke: "#64748B", fontSize: 11, fontFamily: "JetBrains Mono Variable" };
@@ -82,6 +82,153 @@ function Card({
       </h2>
       {children}
     </section>
+  );
+}
+
+// ── Sub-muscle breakdown card ─────────────────────────────────────────────────
+// Fetches real primary/secondary set counts from the backend /analytics/sub-muscle
+// endpoint, which counts actual completed working sets from the last 4 weeks.
+// Primary muscles get full credit; secondary muscles get 0.5x credit.
+// Existing workout/PR/volume calculations are untouched.
+
+const SUB_MUSCLE_COLORS: Record<string, string> = {
+  // Chest
+  "Upper Chest": "#22C55E",
+  "Middle Chest": "#16A34A",
+  "Lower Chest": "#15803D",
+  // Back
+  "Lats": "#06B6D4",
+  "Mid Back": "#0891B2",
+  "Upper Back": "#0E7490",
+  "Lower Back": "#155E75",
+  "Traps": "#164E63",
+  // Shoulders
+  "Front Deltoids": "#F59E0B",
+  "Side Deltoids": "#D97706",
+  "Rear Deltoids": "#B45309",
+  // Legs
+  "Quadriceps": "#A3E635",
+  "Hamstrings": "#14B8A6",
+  "Glutes": "#F97316",
+  "Gastrocnemius": "#94A3B8",
+  "Soleus": "#64748B",
+  // Arms
+  "Biceps": "#38BDF8",
+  "Biceps Long Head": "#7DD3FC",
+  "Biceps Short Head": "#BAE6FD",
+  "Brachialis": "#0284C7",
+  "Triceps": "#FACC15",
+  "Triceps Long Head": "#FDE047",
+  "Triceps Lateral Head": "#EAB308",
+  "Triceps Medial Head": "#CA8A04",
+  // Core
+  "Rectus Abdominis": "#FF3B30",
+  "Obliques": "#FF6B35",
+  "Transverse Abdominis": "#FF8C69",
+  "Hip Flexors": "#FF6B6B",
+};
+
+function SubMuscleCard() {
+  const q = useQuery({
+    queryKey: ["analytics", "sub-muscle"],
+    queryFn: () => apiGet<SubMuscleBreakdown>("/analytics/sub-muscle"),
+  });
+
+  const data = q.isError ? undefined : q.data;
+  const primary = (data?.primary ?? []).slice(0, 12);
+  const secondary = (data?.secondary ?? []).slice(0, 8);
+
+  if (q.isLoading) {
+    return (
+      <Card title="Sub-muscle breakdown · primary only" icon={Layers} testid="analytics-submuscle-card" className="lg:col-span-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div key={n} className="flex flex-col gap-1">
+              <div className="h-3 w-full animate-pulse rounded bg-surface-active" />
+              <div className="h-1.5 w-full animate-pulse rounded-full bg-surface-active" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  if (!data || primary.length === 0) return null;
+
+  const maxPrimary = primary[0]?.sets ?? 1;
+  const maxSecondary = secondary[0]?.sets ?? 1;
+
+  return (
+    <Card
+      title="Sub-muscle breakdown · 4 wks"
+      icon={Layers}
+      testid="analytics-submuscle-card"
+      className="lg:col-span-3"
+    >
+      <p className="mb-4 text-xs text-muted-foreground">
+        Primary muscles get full set credit. Secondary assistors get 0.5× credit. Warm-up sets excluded.
+      </p>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Primary */}
+        <div>
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-volt">Primary targets</p>
+          <div className="grid gap-2">
+            {primary.map(({ muscle, sets }) => {
+              const color = SUB_MUSCLE_COLORS[muscle] ?? "#94A3B8";
+              const pct = Math.round((sets / maxPrimary) * 100);
+              return (
+                <div key={muscle} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
+                      {muscle}
+                    </span>
+                    <span className="font-mono text-muted-foreground">{sets} sets</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-active">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: color, opacity: 0.85 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Secondary */}
+        {secondary.length > 0 && (
+          <div>
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-cyan-focus">Secondary involvement</p>
+            <div className="grid gap-2">
+              {secondary.map(({ muscle, sets }) => {
+                const color = SUB_MUSCLE_COLORS[muscle] ?? "#94A3B8";
+                const pct = Math.round((sets / maxSecondary) * 100);
+                return (
+                  <div key={muscle} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
+                        {muscle}
+                      </span>
+                      <span className="font-mono text-muted-foreground">{sets}×</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-active">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: color, opacity: 0.5 }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -409,6 +556,9 @@ export default function Analytics() {
             </div>
           )}
         </Card>
+
+        {/* Sub-muscle breakdown — real set counts from /analytics/sub-muscle */}
+        <SubMuscleCard />
       </div>
     </div>
   );
