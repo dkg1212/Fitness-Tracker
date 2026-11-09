@@ -52,7 +52,8 @@ export default function AppShell() {
   if (me.data && pathname !== "/profile" && (!me.data.weight_kg || !me.data.height_cm || !me.data.sex)) return <Navigate to="/profile?onboarding=1" replace />;
 
   const onLogger = pathname.startsWith("/workout");
-  const showResume = !!active.data && !active.isError && !onLogger;
+  const hasActive = !!active.data && !active.isError;
+  const showResume = hasActive && !onLogger;
 
   return (
     <div className="min-h-dvh lg:pl-64">
