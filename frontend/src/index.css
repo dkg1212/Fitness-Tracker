@@ -63,6 +63,7 @@
     --animate-fade-up: fade-up 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
     --animate-pulse-ring: pulse-ring 1.3s ease-out infinite;
     --animate-scan: scan 2.4s linear infinite;
+    --animate-slide-in: slide-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
     @keyframes set-pop {
         0% { transform: scale(0.82); }
@@ -80,6 +81,10 @@
     @keyframes scan {
         0% { transform: translateX(-100%); }
         100% { transform: translateX(100%); }
+    }
+    @keyframes slide-in {
+        from { opacity: 0; transform: translateX(16px); }
+        to { opacity: 1; transform: translateX(0); }
     }
 }
 
@@ -166,5 +171,70 @@
   /* Smooth scroll for in-page navigation */
   html {
     scroll-behavior: smooth;
+  }
+  /* Clerk auth widget dark theme overrides */
+  .cl-rootBox,
+  .cl-card,
+  .cl-signIn-root,
+  .cl-signUp-root {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .cl-headerTitle {
+    color: var(--foreground) !important;
+    font-family: var(--font-heading) !important;
+  }
+  .cl-headerSubtitle,
+  .cl-footerActionText {
+    color: var(--muted-foreground) !important;
+  }
+  .cl-formButtonPrimary {
+    background-color: var(--volt) !important;
+    color: var(--volt-ink) !important;
+    font-weight: 700 !important;
+    height: 44px !important;
+  }
+  .cl-formButtonPrimary:hover {
+    opacity: 0.9 !important;
+  }
+  .cl-formFieldInput {
+    background: var(--background) !important;
+    border-color: var(--input) !important;
+    color: var(--foreground) !important;
+    height: 44px !important;
+  }
+  .cl-formFieldInput:focus {
+    border-color: var(--volt) !important;
+    box-shadow: 0 0 0 2px rgba(34,197,94,0.2) !important;
+  }
+  .cl-dividerLine {
+    background: var(--border) !important;
+  }
+  .cl-dividerText {
+    color: var(--muted-foreground) !important;
+  }
+  .cl-socialButtonsBlockButton {
+    border-color: var(--border) !important;
+    background: var(--surface) !important;
+    color: var(--foreground) !important;
+  }
+  .cl-footerActionLink {
+    color: var(--volt) !important;
+  }
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--input);
   }
 }

@@ -1,8 +1,20 @@
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Dumbbell, Flame, Trophy } from "lucide-react";
+import { Activity, Dumbbell, Flame, Trophy, TrendingUp } from "lucide-react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,14 +25,61 @@ import { fmtDate, fmtKg, fmtVolume, MUSCLE_COLORS } from "@/lib/workout";
 
 const AXIS = { stroke: "#64748B", fontSize: 11, fontFamily: "JetBrains Mono Variable" };
 const TOOLTIP = {
-  contentStyle: { background: "#0F172A", border: "1px solid #334155", borderRadius: 8, fontSize: 12 },
-  labelStyle: { color: "#94A3B8" },
+  contentStyle: {
+    background: "#0F172A",
+    border: "1px solid #334155",
+    borderRadius: 10,
+    fontSize: 12,
+    padding: "8px 12px",
+  },
+  labelStyle: { color: "#94A3B8", marginBottom: 4 },
+  itemStyle: { color: "#F8FAFC" },
 };
 
-function Card({ title, icon: Icon, children, testid, className = "" }: { title: string; icon: typeof Trophy; children: React.ReactNode; testid: string; className?: string }) {
+function StatChip({
+  label,
+  value,
+  icon: Icon,
+  testid,
+  accent = "text-volt",
+}: {
+  label: string;
+  value: string;
+  icon: typeof Trophy;
+  testid: string;
+  accent?: string;
+}) {
   return (
-    <section className={`rounded-xl border border-border bg-surface-card/60 p-4 sm:p-5 animate-fade-up ${className}`} data-testid={testid}>
-      <h2 className="mb-4 flex items-center gap-2 font-heading text-lg font-bold"><Icon className="size-4 text-volt" />{title}</h2>
+    <div className="rounded-xl border border-border bg-surface p-4" data-testid={testid}>
+      <Icon className={`size-4 ${accent}`} />
+      <p className="mt-2 font-mono text-2xl font-bold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  icon: Icon,
+  children,
+  testid,
+  className = "",
+}: {
+  title: string;
+  icon: typeof Trophy;
+  children: React.ReactNode;
+  testid: string;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-xl border border-border bg-surface-card/60 p-4 sm:p-5 animate-fade-up ${className}`}
+      data-testid={testid}
+    >
+      <h2 className="mb-4 flex items-center gap-2 font-heading text-lg font-bold">
+        <Icon className="size-4 text-volt" />
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -28,7 +87,10 @@ function Card({ title, icon: Icon, children, testid, className = "" }: { title: 
 
 export default function Analytics() {
   const [params, setParams] = useSearchParams();
-  const summaryQ = useQuery({ queryKey: ["analytics", "summary"], queryFn: () => apiGet<AnalyticsSummary>("/analytics/summary") });
+  const summaryQ = useQuery({
+    queryKey: ["analytics", "summary"],
+    queryFn: () => apiGet<AnalyticsSummary>("/analytics/summary"),
+  });
   const s = summaryQ.isError ? undefined : summaryQ.data;
   const selected = params.get("exercise") ?? s?.prs[0]?.exercise_id ?? "";
 
@@ -39,8 +101,14 @@ export default function Analytics() {
   });
   const progress = progressQ.isError ? undefined : progressQ.data;
 
-  const weekly = (s?.weekly_volume ?? []).map((w) => ({ ...w, label: fmtDate(w.week_start, "dd/MM") }));
-  const points = (progress?.points ?? []).map((p) => ({ ...p, label: fmtDate(p.date, "dd/MM") }));
+  const weekly = (s?.weekly_volume ?? []).map((w) => ({
+    ...w,
+    label: fmtDate(w.week_start, "dd/MM"),
+  }));
+  const points = (progress?.points ?? []).map((p) => ({
+    ...p,
+    label: fmtDate(p.date, "dd/MM"),
+  }));
   const best = points.length ? Math.max(...points.map((p) => p.e1rm)) : 0;
   const first = points[0]?.e1rm ?? 0;
   const delta = points.length > 1 ? best - first : 0;
@@ -49,23 +117,46 @@ export default function Analytics() {
     <div>
       <PageHeader eyebrow="Progress" title="Analytics & 1RM" testid="analytics-title" />
 
+      {/* Stats row */}
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { k: "Total sessions", v: s ? String(s.total_workouts) : "–", icon: Dumbbell, t: "analytics-total-workouts" },
-          { k: "Week streak", v: s ? String(s.week_streak) : "–", icon: Flame, t: "analytics-week-streak" },
-          { k: "This week", v: s ? `${fmtVolume(s.this_week_volume)} kg` : "–", icon: Activity, t: "analytics-week-volume" },
-          { k: "Tracked lifts", v: s ? String(s.prs.length) : "–", icon: Trophy, t: "analytics-tracked-lifts" },
-        ].map(({ k, v, icon: Icon, t }) => (
-          <div key={k} className="rounded-xl border border-border bg-surface p-4" data-testid={t}>
-            <Icon className="size-4 text-muted-foreground" />
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums">{v}</p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k}</p>
-          </div>
-        ))}
+        <StatChip
+          label="Total sessions"
+          value={s ? String(s.total_workouts) : "–"}
+          icon={Dumbbell}
+          testid="analytics-total-workouts"
+          accent="text-muted-foreground"
+        />
+        <StatChip
+          label="Week streak"
+          value={s ? `${s.week_streak}wk` : "–"}
+          icon={Flame}
+          testid="analytics-week-streak"
+          accent="text-amber-warn"
+        />
+        <StatChip
+          label="This week"
+          value={s ? `${fmtVolume(s.this_week_volume)} kg` : "–"}
+          icon={Activity}
+          testid="analytics-week-volume"
+          accent="text-volt"
+        />
+        <StatChip
+          label="Tracked lifts"
+          value={s ? String(s.prs.length) : "–"}
+          icon={Trophy}
+          testid="analytics-tracked-lifts"
+          accent="text-amber-warn"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Exercise progression" icon={Activity} testid="analytics-progress-card" className="lg:col-span-2">
+        {/* Exercise progression line chart */}
+        <Card
+          title="Exercise progression"
+          icon={Activity}
+          testid="analytics-progress-card"
+          className="lg:col-span-2"
+        >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <Select value={selected} onValueChange={(v: string) => setParams({ exercise: v })}>
               <SelectTrigger className="h-11 w-full sm:w-72" data-testid="analytics-exercise-select">
@@ -73,50 +164,143 @@ export default function Analytics() {
               </SelectTrigger>
               <SelectContent>
                 {(s?.prs ?? []).map((p) => (
-                  <SelectItem key={p.exercise_id} value={p.exercise_id} data-testid={`analytics-exercise-option-${p.exercise_id}`}>{p.exercise_name}</SelectItem>
+                  <SelectItem
+                    key={p.exercise_id}
+                    value={p.exercise_id}
+                    data-testid={`analytics-exercise-option-${p.exercise_id}`}
+                  >
+                    {p.exercise_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
             {points.length > 0 && (
               <div className="flex gap-4 font-mono text-sm">
-                <span><span className="text-muted-foreground">Best e1RM </span><b data-testid="analytics-best-e1rm">{fmtKg(best)} kg</b></span>
-                <span className={delta >= 0 ? "text-volt" : "text-crimson"} data-testid="analytics-e1rm-delta">{delta >= 0 ? "+" : ""}{fmtKg(Math.round(delta * 10) / 10)} kg</span>
+                <span>
+                  <span className="text-muted-foreground">Best e1RM </span>
+                  <b data-testid="analytics-best-e1rm">{fmtKg(best)} kg</b>
+                </span>
+                <span
+                  className={delta >= 0 ? "text-volt" : "text-crimson"}
+                  data-testid="analytics-e1rm-delta"
+                >
+                  {delta >= 0 ? "+" : ""}
+                  {fmtKg(Math.round(delta * 10) / 10)} kg
+                </span>
               </div>
             )}
           </div>
-          <div className="h-72">
+
+          <div className="h-64 sm:h-72">
             {points.length === 0 ? (
-              <p className="grid h-full place-items-center text-sm text-muted-foreground" data-testid="analytics-progress-empty">
-                {selected ? "No completed sets for this exercise yet." : "Log a workout to see progression."}
-              </p>
+              <div
+                className="grid h-full place-items-center"
+                data-testid="analytics-progress-empty"
+              >
+                <div className="text-center">
+                  <TrendingUp className="mx-auto size-8 text-muted-foreground/30" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {selected
+                      ? "No completed sets for this exercise yet."
+                      : "Log a workout to see progression."}
+                  </p>
+                </div>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={points} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <LineChart data={points} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                   <CartesianGrid stroke="#1E293B" vertical={false} />
-                  <XAxis dataKey="label" {...AXIS} tickLine={false} />
-                  <YAxis {...AXIS} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
-                  <Tooltip {...TOOLTIP} formatter={(value: number, name: string) => [`${fmtKg(value)} kg`, name]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="e1rm" name="Est. 1RM" stroke="#22C55E" strokeWidth={2.5} dot={{ r: 3, fill: "#22C55E" }} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="top_weight" name="Top weight" stroke="#06B6D4" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 2.5, fill: "#06B6D4" }} />
+                  <XAxis dataKey="label" {...AXIS} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis
+                    {...AXIS}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={["auto", "auto"]}
+                    tickFormatter={(v: number) => `${fmtKg(v)}`}
+                  />
+                  <Tooltip
+                    {...TOOLTIP}
+                    formatter={(value: number, name: string) => [`${fmtKg(value)} kg`, name]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {best > 0 && (
+                    <ReferenceLine
+                      y={best}
+                      stroke="#22C55E"
+                      strokeDasharray="4 4"
+                      strokeOpacity={0.4}
+                    />
+                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="e1rm"
+                    name="Est. 1RM"
+                    stroke="#22C55E"
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: "#22C55E" }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="top_weight"
+                    name="Top weight"
+                    stroke="#06B6D4"
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    dot={{ r: 2.5, fill: "#06B6D4" }}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}
           </div>
         </Card>
 
+        {/* Muscle workload */}
         <Card title="Muscle workload · 4 wks" icon={Dumbbell} testid="analytics-muscle-card">
-          <div className="h-72">
+          <div className="h-64 sm:h-72">
             {(s?.muscle_workload.length ?? 0) === 0 ? (
-              <p className="grid h-full place-items-center text-sm text-muted-foreground">No sets in the last 4 weeks.</p>
+              <div className="grid h-full place-items-center text-center">
+                <div>
+                  <Dumbbell className="mx-auto size-8 text-muted-foreground/30" />
+                  <p className="mt-2 text-sm text-muted-foreground">No sets in the last 4 weeks.</p>
+                </div>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={s?.muscle_workload} layout="vertical" margin={{ top: 0, right: 12, left: 8, bottom: 0 }}>
-                  <XAxis type="number" {...AXIS} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="muscle_group" {...AXIS} tickLine={false} axisLine={false} width={80} />
-                  <Tooltip {...TOOLTIP} cursor={{ fill: "rgba(148,163,184,0.06)" }} formatter={(value: number) => [`${value} sets`, "Working sets"]} />
-                  <Bar dataKey="sets" radius={[0, 4, 4, 0]}>
-                    {s?.muscle_workload.map((m) => <Cell key={m.muscle_group} fill={MUSCLE_COLORS[m.muscle_group] ?? "#94A3B8"} />)}
+                <BarChart
+                  data={s?.muscle_workload}
+                  layout="vertical"
+                  margin={{ top: 0, right: 40, left: 4, bottom: 0 }}
+                >
+                  <XAxis type="number" {...AXIS} tickLine={false} axisLine={false} hide />
+                  <YAxis
+                    type="category"
+                    dataKey="muscle_group"
+                    {...AXIS}
+                    tickLine={false}
+                    axisLine={false}
+                    width={76}
+                  />
+                  <Tooltip
+                    {...TOOLTIP}
+                    cursor={{ fill: "rgba(148,163,184,0.06)" }}
+                    formatter={(value: number) => [`${value} sets`, "Working sets"]}
+                  />
+                  <Bar dataKey="sets" radius={[0, 6, 6, 0]}>
+                    <LabelList
+                      dataKey="sets"
+                      position="right"
+                      style={{ fill: "#94A3B8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                    />
+                    {s?.muscle_workload.map((m) => (
+                      <Cell
+                        key={m.muscle_group}
+                        fill={MUSCLE_COLORS[m.muscle_group] ?? "#94A3B8"}
+                        fillOpacity={0.85}
+                      />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -124,30 +308,66 @@ export default function Analytics() {
           </div>
         </Card>
 
-        <Card title="Weekly volume (kg)" icon={Activity} testid="analytics-weekly-volume-card" className="lg:col-span-3">
-          <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weekly} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
-                <CartesianGrid stroke="#1E293B" vertical={false} />
-                <XAxis dataKey="label" {...AXIS} tickLine={false} />
-                <YAxis {...AXIS} tickLine={false} axisLine={false} tickFormatter={(v: number) => fmtVolume(v)} />
-                <Tooltip {...TOOLTIP} cursor={{ fill: "rgba(148,163,184,0.06)" }} labelFormatter={(label: string) => `Week of ${label}`} formatter={(value: number) => [`${fmtVolume(value)} kg`, "Volume"]} />
-                <Bar dataKey="volume" fill="#22C55E" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Weekly volume bar chart */}
+        <Card
+          title="Weekly volume (kg)"
+          icon={Activity}
+          testid="analytics-weekly-volume-card"
+          className="lg:col-span-3"
+        >
+          <div className="h-56">
+            {weekly.length === 0 ? (
+              <div className="grid h-full place-items-center">
+                <p className="text-sm text-muted-foreground">No data yet. Log some workouts first.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weekly} margin={{ top: 16, right: 8, left: -4, bottom: 0 }}>
+                  <CartesianGrid stroke="#1E293B" vertical={false} />
+                  <XAxis dataKey="label" {...AXIS} tickLine={false} />
+                  <YAxis
+                    {...AXIS}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => fmtVolume(v)}
+                  />
+                  <Tooltip
+                    {...TOOLTIP}
+                    cursor={{ fill: "rgba(148,163,184,0.06)" }}
+                    labelFormatter={(label: string) => `Week of ${label}`}
+                    formatter={(value: number) => [`${fmtVolume(value)} kg`, "Volume"]}
+                  />
+                  <Bar dataKey="volume" fill="#22C55E" radius={[6, 6, 0, 0]} fillOpacity={0.9}>
+                    <LabelList
+                      dataKey="volume"
+                      position="top"
+                      formatter={(v: number) => (v > 0 ? fmtVolume(v) : "")}
+                      style={{ fill: "#94A3B8", fontSize: 10, fontFamily: "JetBrains Mono Variable" }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
 
+        {/* PR table */}
         <Card title="Personal records" icon={Trophy} testid="analytics-pr-card" className="lg:col-span-3">
           {(s?.prs.length ?? 0) === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground" data-testid="analytics-pr-empty">No records yet.</p>
+            <div className="flex flex-col items-center py-8" data-testid="analytics-pr-empty">
+              <Trophy className="size-8 text-muted-foreground/30" />
+              <p className="mt-3 text-sm font-semibold text-muted-foreground">No records yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                PRs are tracked automatically when you complete sets.
+              </p>
+            </div>
           ) : (
-            <div className="overflow-x-auto -mx-1 px-1">
+            <div className="-mx-1 overflow-x-auto px-1">
               <Table data-testid="analytics-pr-table" className="min-w-[500px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Exercise</TableHead>
-                    <TableHead className="text-right">Heaviest</TableHead>
+                    <TableHead className="text-right">Heaviest set</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
                     <TableHead className="text-right">Best e1RM</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
@@ -155,16 +375,33 @@ export default function Analytics() {
                 </TableHeader>
                 <TableBody>
                   {s?.prs.map((p) => (
-                    <TableRow key={p.exercise_id} className="cursor-pointer" onClick={() => setParams({ exercise: p.exercise_id })} data-testid={`analytics-pr-row-${p.exercise_id}`}>
+                    <TableRow
+                      key={p.exercise_id}
+                      className="cursor-pointer transition-colors"
+                      onClick={() => setParams({ exercise: p.exercise_id })}
+                      data-testid={`analytics-pr-row-${p.exercise_id}`}
+                    >
                       <TableCell>
                         <span className="flex items-center gap-2 font-semibold">
-                          <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[p.muscle_group] }} />{p.exercise_name}
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ background: MUSCLE_COLORS[p.muscle_group] }}
+                          />
+                          {p.exercise_name}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right font-mono">{fmtKg(p.best_weight)} × {p.best_weight_reps}</TableCell>
-                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_weight_date)}</TableCell>
-                      <TableCell className="text-right font-mono font-bold text-volt">{fmtKg(p.best_e1rm)}</TableCell>
-                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_e1rm_date)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmtKg(p.best_weight)} × {p.best_weight_reps}
+                      </TableCell>
+                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">
+                        {fmtDate(p.best_weight_date)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-volt">
+                        {fmtKg(p.best_e1rm)} kg
+                      </TableCell>
+                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">
+                        {fmtDate(p.best_e1rm_date)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

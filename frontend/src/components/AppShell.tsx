@@ -61,24 +61,48 @@ export default function AppShell() {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar/95 px-4 py-6 backdrop-blur lg:flex">
         <Brand />
         <nav className="mt-10 flex flex-1 flex-col gap-1">
-          {SIDE.map(({ label, to, icon: Icon, testid }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              data-testid={testid}
-              className={({ isActive }) =>
-                cn(
-                  "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground",
-                  isActive && "bg-sidebar-accent text-foreground shadow-[inset_3px_0_0_var(--volt)]",
-                )
-              }
-            >
-              <Icon className="size-4.5 transition-transform duration-150 group-hover:scale-110" />
-              {label}
-            </NavLink>
-          ))}
+          {SIDE.map(({ label, to, icon: Icon, testid }) => {
+            const isLoggerLink = to === "/workout/active";
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === "/"}
+                data-testid={testid}
+                className={({ isActive }) =>
+                  cn(
+                    "group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground",
+                    isActive && "bg-sidebar-accent text-foreground shadow-[inset_3px_0_0_var(--volt)]",
+                  )
+                }
+              >
+                <span className="relative">
+                  <Icon className="size-4.5 transition-transform duration-150 group-hover:scale-110" />
+                  {isLoggerLink && hasActive && (
+                    <span className="absolute -right-1 -top-1 size-2 rounded-full border border-sidebar bg-volt" />
+                  )}
+                </span>
+                {label}
+              </NavLink>
+            );
+          })}
         </nav>
+
+        {/* Sidebar bottom: user info */}
+        <div className="mt-4 border-t border-sidebar-border pt-4">
+          <button
+            type="button"
+            onClick={() => setProfileMenuOpen((o) => !o)}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-volt text-xs font-extrabold text-volt-ink">
+              {(user?.username ?? me.data?.name ?? "A").slice(0, 1).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-left">
+              {user?.username ?? me.data?.name ?? "Athlete"}
+            </span>
+          </button>
+        </div>
       </aside>
 
       {/* Mobile top bar */}

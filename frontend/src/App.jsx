@@ -32,7 +32,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <Toaster richColors position="bottom-right" />
+      <Toaster richColors position="top-center" mobilePosition="top-center" />
     </>
   );
 }
