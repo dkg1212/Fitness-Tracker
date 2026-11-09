@@ -175,13 +175,13 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
               className="mt-0.5 w-full bg-transparent font-heading text-2xl font-extrabold tracking-tight outline-none focus:text-volt"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {isEdit ? (
-              <Button onClick={() => void doneEditing()} className="h-11 px-5 font-bold" data-testid="edit-done-button">
+              <Button onClick={() => void doneEditing()} className="h-12 px-5 text-base font-bold" data-testid="edit-done-button">
                 <Check className="size-4" /> Done
               </Button>
             ) : (
-              <Button onClick={() => setFinishOpen(true)} className="h-11 px-5 font-bold" data-testid="finish-workout-button">
+              <Button onClick={() => setFinishOpen(true)} className="h-12 px-5 text-base font-bold" data-testid="finish-workout-button">
                 <Flag className="size-4" /> Finish
               </Button>
             )}
@@ -189,7 +189,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
               <DropdownMenuTrigger
                 data-testid="workout-menu-button"
                 aria-label="Workout options"
-                className="grid size-11 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground"
+                className="grid size-12 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground active:bg-surface-active"
               >
                 <MoreHorizontal className="size-5" />
               </DropdownMenuTrigger>
@@ -271,7 +271,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
         <Button
           variant="outline"
           onClick={() => setPickerOpen(true)}
-          className="h-14 border-dashed text-base font-bold hover:border-volt hover:text-volt"
+          className="h-16 border-dashed text-base font-bold hover:border-volt hover:text-volt active:scale-[0.98]"
           data-testid="active-workout-add-exercise-button"
         >
           <Plus className="size-5" /> Add exercise

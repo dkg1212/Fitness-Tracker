@@ -145,10 +145,10 @@ export default function ExerciseCard({
     >
       <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-4">
         <div className="min-w-0">
-          <h3 className="truncate font-heading text-lg font-bold leading-tight" data-testid={`exercise-card-name-${p}`}>
+          <h3 className="truncate font-heading text-xl font-bold leading-tight" data-testid={`exercise-card-name-${p}`}>
             {ex.exercise_name}
           </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="size-2 rounded-full" style={{ background: MUSCLE_COLORS[ex.muscle_group] ?? "#94A3B8" }} />
               {ex.muscle_group}
@@ -157,7 +157,7 @@ export default function ExerciseCard({
               type="button"
               onClick={cycleRest}
               data-testid={`exercise-rest-chip-${p}`}
-              className="flex h-7 items-center gap-1 rounded-full border border-border px-2.5 font-mono text-[11px] font-semibold text-foreground transition-colors hover:border-volt"
+              className="flex h-8 items-center gap-1 rounded-full border border-border px-3 font-mono text-[11px] font-semibold text-foreground transition-colors hover:border-volt active:scale-95"
             >
               <Timer className="size-3 text-volt" /> {fmtClock(ex.rest_seconds)}
             </button>
@@ -165,7 +165,7 @@ export default function ExerciseCard({
               type="button"
               onClick={() => onChange({ ...ex, effort_mode: ex.effort_mode === "rpe" ? "rir" : "rpe" })}
               data-testid={`exercise-effort-toggle-${p}`}
-              className="flex h-7 items-center gap-1 rounded-full border border-border px-2.5 font-mono text-[11px] font-semibold uppercase text-foreground transition-colors hover:border-cyan-focus"
+              className="flex h-8 items-center gap-1 rounded-full border border-border px-3 font-mono text-[11px] font-semibold uppercase text-foreground transition-colors hover:border-cyan-focus active:scale-95"
             >
               <Gauge className="size-3 text-cyan-focus" /> {ex.effort_mode}
             </button>
@@ -174,7 +174,7 @@ export default function ExerciseCard({
         <DropdownMenu>
           <DropdownMenuTrigger
             data-testid={`exercise-menu-button-${p}`}
-            className="grid size-10 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-foreground"
+            className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-foreground active:scale-95"
             aria-label="Exercise options"
           >
             <MoreVertical className="size-5" />
@@ -209,16 +209,17 @@ export default function ExerciseCard({
         </div>
       )}
 
-      <div className="grid grid-cols-[40px_1fr_1fr_64px_48px] gap-2 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:grid-cols-[44px_88px_1fr_1fr_72px_52px]">
+      {/* Column headers */}
+      <div className="grid grid-cols-[36px_1fr_1fr_56px_52px] gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:grid-cols-[40px_80px_1fr_1fr_68px_52px]">
         <span className="text-center">Set</span>
         <span className="hidden sm:block">Previous</span>
         <span className="text-center">kg</span>
         <span className="text-center">Reps</span>
         <span className="text-center">{ex.effort_mode}</span>
-        <span className="text-center">Done</span>
+        <span className="text-center">✓</span>
       </div>
 
-      <div className="flex flex-col gap-1 px-2 pb-2">
+      <div className="flex flex-col gap-1.5 px-2 pb-2">
         {ex.sets.map((s, si) => {
           if (s.set_type !== "W") workingNo += 1;
           const label = s.set_type === "N" ? String(workingNo) : s.set_type;
@@ -230,7 +231,7 @@ export default function ExerciseCard({
               <div
                 data-testid={`set-row-${id}`}
                 className={cn(
-                  "grid grid-cols-[40px_1fr_1fr_64px_48px] items-center gap-2 rounded-lg border border-transparent px-1 py-1 transition-colors duration-200 sm:grid-cols-[44px_88px_1fr_1fr_72px_52px]",
+                  "grid grid-cols-[36px_1fr_1fr_56px_52px] items-center gap-1.5 rounded-xl border border-transparent px-1 py-1.5 transition-colors duration-200 sm:grid-cols-[40px_80px_1fr_1fr_68px_52px]",
                   s.completed && "border-volt/60 bg-volt/[0.12]",
                   !s.completed && si === activeIdx && "bg-surface-active/60",
                 )}
@@ -239,7 +240,7 @@ export default function ExerciseCard({
                   <DropdownMenuTrigger
                     data-testid={`set-row-type-button-${id}`}
                     className={cn(
-                      "grid h-12 place-items-center rounded-md bg-background/50 font-mono text-sm font-bold transition-colors hover:bg-surface-active",
+                      "grid h-12 place-items-center rounded-lg bg-background/50 font-mono text-sm font-bold transition-colors hover:bg-surface-active active:scale-95",
                       TYPE_COLOR[s.set_type],
                     )}
                     aria-label={`Set ${label} options`}
@@ -294,7 +295,7 @@ export default function ExerciseCard({
                   onChange={(e) => setEffort(si, e.target.value)}
                   data-testid={`set-row-effort-select-${id}`}
                   aria-label={ex.effort_mode.toUpperCase()}
-                  className="h-12 w-full rounded-md border border-input/70 bg-background/60 text-center font-mono text-sm font-semibold outline-none transition-[border-color] focus:border-cyan-focus"
+                  className="h-12 w-full rounded-lg border border-input/70 bg-background/60 text-center font-mono text-sm font-semibold outline-none transition-[border-color] focus:border-cyan-focus"
                 >
                   <option value="">–</option>
                   {(ex.effort_mode === "rpe" ? RPE_OPTIONS : RIR_OPTIONS).map((v) => (
@@ -308,9 +309,9 @@ export default function ExerciseCard({
                   aria-label={s.completed ? "Mark set incomplete" : "Complete set"}
                   data-testid={`set-row-complete-checkbox-${id}`}
                   className={cn(
-                    "grid h-12 place-items-center rounded-md border-2 transition-[background-color,border-color,transform] duration-150 active:scale-95",
+                    "grid h-12 w-12 place-items-center rounded-xl border-2 transition-[background-color,border-color,transform] duration-150 active:scale-90",
                     s.completed
-                      ? "animate-set-pop border-volt bg-volt text-volt-ink"
+                      ? "animate-set-pop border-volt bg-volt text-volt-ink shadow-[0_0_12px_rgba(34,197,94,0.4)]"
                       : "border-input bg-background/40 text-muted-foreground hover:border-volt",
                   )}
                 >
@@ -319,11 +320,11 @@ export default function ExerciseCard({
               </div>
 
               {si === activeIdx && (
-                <div className="mt-1 grid grid-cols-4 gap-1.5 px-1 pb-1" data-testid={`set-stepper-${id}`}>
+                <div className="mt-1.5 grid grid-cols-4 gap-2 px-1 pb-1" data-testid={`set-stepper-${id}`}>
                   {(
                     [
-                      ["weight", -2.5, "−2.5 kg"],
-                      ["weight", 2.5, "+2.5 kg"],
+                      ["weight", -2.5, "−2.5"],
+                      ["weight", 2.5, "+2.5"],
                       ["reps", -1, "−1 rep"],
                       ["reps", 1, "+1 rep"],
                     ] as const
@@ -333,7 +334,7 @@ export default function ExerciseCard({
                       type="button"
                       onClick={() => step(si, field, delta)}
                       data-testid={`set-stepper-${field}-${delta > 0 ? "plus" : "minus"}-${id}`}
-                      className="h-11 rounded-md border border-border bg-background/40 font-mono text-xs font-semibold text-muted-foreground transition-colors hover:border-volt hover:text-foreground active:bg-surface-active"
+                      className="h-12 rounded-xl border border-border bg-background/40 font-mono text-xs font-semibold text-muted-foreground transition-colors hover:border-volt hover:text-foreground active:bg-surface-active active:scale-95"
                     >
                       {text}
                     </button>
@@ -349,7 +350,7 @@ export default function ExerciseCard({
         type="button"
         onClick={() => onChange({ ...ex, sets: [...ex.sets, newSet(ex.sets[ex.sets.length - 1])] })}
         data-testid={`exercise-add-set-button-${p}`}
-        className="flex h-12 w-full items-center justify-center gap-2 border-t border-border text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-active hover:text-volt"
+        className="flex h-14 w-full items-center justify-center gap-2 border-t border-border text-sm font-bold text-muted-foreground transition-colors hover:bg-surface-active hover:text-volt active:bg-surface-active"
       >
         <Plus className="size-4" /> Add set
       </button>

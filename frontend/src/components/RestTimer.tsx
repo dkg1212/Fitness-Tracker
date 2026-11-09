@@ -77,7 +77,7 @@ export default function RestTimer({
     <div
       data-testid="rest-timer"
       className={cn(
-        "fixed inset-x-3 bottom-[76px] z-50 flex items-center gap-3 rounded-xl border bg-[#0F172A]/95 p-3 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)] backdrop-blur-md animate-fade-up lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]",
+        "fixed inset-x-3 bottom-[88px] z-50 flex items-center gap-3 rounded-xl border bg-[#0F172A]/95 p-3 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.7)] backdrop-blur-md animate-fade-up lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]",
         done ? "border-volt animate-pulse-ring" : "border-border",
       )}
     >

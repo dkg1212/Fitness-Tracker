@@ -72,13 +72,12 @@ export default function Templates() {
                   <p className="font-mono text-xs text-muted-foreground">{t.exercises.length} exercises · {sets} sets</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" className="h-9 gap-1.5 px-2.5 text-xs" onClick={() => openEditor(t)} aria-label="Edit template" data-testid={`template-edit-${t.id}`}>
+                  <Button variant="ghost" className="h-10 gap-1.5 px-3 text-xs" onClick={() => openEditor(t)} aria-label="Edit template" data-testid={`template-edit-${t.id}`}>
                     <Pencil className="size-4" />
                     Edit
                   </Button>
-                  <Button variant="ghost" className="h-9 gap-1.5 px-2.5 text-xs hover:text-crimson" onClick={() => setToDelete(t)} aria-label="Delete template" data-testid={`template-delete-${t.id}`}>
+                  <Button variant="ghost" className="h-10 w-10 px-0 hover:text-crimson" onClick={() => setToDelete(t)} aria-label="Delete template" data-testid={`template-delete-${t.id}`}>
                     <Trash2 className="size-4" />
-                    Delete
                   </Button>
                 </div>
               </div>
@@ -93,7 +92,7 @@ export default function Templates() {
                   </li>
                 ))}
               </ul>
-              <StartWorkoutButton body={{ template_id: t.id, name: null }} className="mt-5 h-11 w-full font-bold" testid={`template-start-${t.id}`}>
+              <StartWorkoutButton body={{ template_id: t.id, name: null }} className="mt-5 h-12 w-full font-bold active:scale-[0.97]" testid={`template-start-${t.id}`}>
                 <Play className="size-4" /> Start workout
               </StartWorkoutButton>
             </article>

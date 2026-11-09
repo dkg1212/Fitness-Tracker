@@ -140,9 +140,15 @@
     background-size: auto, 32px 32px, 32px 32px;
     background-attachment: fixed;
     -webkit-tap-highlight-color: transparent;
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
     }
   html {
     @apply font-sans;
+    /* Prevent font size inflation on mobile orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     }
   h1, h2, h3, h4 {
     @apply font-heading;
@@ -151,5 +157,14 @@
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+  /* Ensure tappable elements have a minimum 44px touch target */
+  button, a, [role="button"] {
+    min-height: 0; /* don't force, but respect manually set sizes */
+    touch-action: manipulation;
+  }
+  /* Smooth scroll for in-page navigation */
+  html {
+    scroll-behavior: smooth;
   }
 }

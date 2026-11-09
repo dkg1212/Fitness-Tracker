@@ -142,32 +142,34 @@ export default function Analytics() {
           {(s?.prs.length ?? 0) === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground" data-testid="analytics-pr-empty">No records yet.</p>
           ) : (
-            <Table data-testid="analytics-pr-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Exercise</TableHead>
-                  <TableHead className="text-right">Heaviest</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
-                  <TableHead className="text-right">Best e1RM</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {s?.prs.map((p) => (
-                  <TableRow key={p.exercise_id} className="cursor-pointer" onClick={() => setParams({ exercise: p.exercise_id })} data-testid={`analytics-pr-row-${p.exercise_id}`}>
-                    <TableCell>
-                      <span className="flex items-center gap-2 font-semibold">
-                        <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[p.muscle_group] }} />{p.exercise_name}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{fmtKg(p.best_weight)} × {p.best_weight_reps}</TableCell>
-                    <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_weight_date)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-volt">{fmtKg(p.best_e1rm)}</TableCell>
-                    <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_e1rm_date)}</TableCell>
+            <div className="overflow-x-auto -mx-1 px-1">
+              <Table data-testid="analytics-pr-table" className="min-w-[500px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Exercise</TableHead>
+                    <TableHead className="text-right">Heaviest</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
+                    <TableHead className="text-right">Best e1RM</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {s?.prs.map((p) => (
+                    <TableRow key={p.exercise_id} className="cursor-pointer" onClick={() => setParams({ exercise: p.exercise_id })} data-testid={`analytics-pr-row-${p.exercise_id}`}>
+                      <TableCell>
+                        <span className="flex items-center gap-2 font-semibold">
+                          <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[p.muscle_group] }} />{p.exercise_name}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{fmtKg(p.best_weight)} × {p.best_weight_reps}</TableCell>
+                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_weight_date)}</TableCell>
+                      <TableCell className="text-right font-mono font-bold text-volt">{fmtKg(p.best_e1rm)}</TableCell>
+                      <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{fmtDate(p.best_e1rm_date)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </Card>
       </div>

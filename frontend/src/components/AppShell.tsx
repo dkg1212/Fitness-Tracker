@@ -97,7 +97,7 @@ export default function AppShell() {
         {profileMenuOpen && <div className="absolute right-4 top-12 z-50 w-48 rounded-lg border border-border bg-popover p-1.5 shadow-xl"><button onClick={() => navigate("/profile")} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"><UserRound className="size-4 text-volt" /> Edit profile</button><button onClick={() => void signOut({ redirectUrl: "/login" })} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-crimson hover:bg-accent"><LogOut className="size-4" /> Log out</button></div>}
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
+      <main className="mx-auto w-full max-w-6xl px-4 pb-36 pt-5 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
         <header className="relative mb-7 hidden h-14 items-center justify-end border-b border-border lg:flex">
           <button type="button" onClick={() => setProfileMenuOpen((open) => !open)} data-testid="topbar-profile-link" className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-active">
             <span className="grid size-8 place-items-center rounded-full bg-volt text-sm font-extrabold text-volt-ink">{(user?.username ?? me.data?.name ?? "A").slice(0, 1).toUpperCase()}</span>
@@ -112,7 +112,7 @@ export default function AppShell() {
         <Link
           to="/workout/active"
           data-testid="resume-workout-bar"
-          className="fixed inset-x-3 bottom-[76px] z-40 flex items-center justify-between rounded-lg border border-volt/50 bg-[#0F172A]/95 px-4 py-3 shadow-2xl backdrop-blur-md transition-transform duration-150 hover:-translate-y-0.5 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-80"
+          className="fixed inset-x-3 bottom-[80px] z-40 flex items-center justify-between rounded-xl border border-volt/50 bg-[#0F172A]/95 px-4 py-3 shadow-2xl backdrop-blur-md transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.98] lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-80"
         >
           <span className="flex items-center gap-3">
             <span className="size-2.5 animate-pulse-ring rounded-full bg-volt" />
@@ -126,24 +126,32 @@ export default function AppShell() {
       )}
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
-        {BOTTOM.map(({ label, to, icon: Icon, testid }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            data-testid={testid}
-            className={({ isActive }) =>
-              cn(
-                "flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors",
-                isActive && "text-volt",
-              )
-            }
-          >
-            <Icon className="size-5" />
-            {label}
-          </NavLink>
-        ))}
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+        {BOTTOM.map(({ label, to, icon: Icon, testid }) => {
+          const isTrainTab = to === "/workout/active";
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              data-testid={testid}
+              className={({ isActive }) =>
+                cn(
+                  "relative flex h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors active:scale-95",
+                  isActive && "text-volt",
+                )
+              }
+            >
+              <span className="relative">
+                <Icon className="size-5" />
+                {isTrainTab && hasActive && (
+                  <span className="absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-background bg-volt animate-pulse-ring" />
+                )}
+              </span>
+              {label}
+            </NavLink>
+          );
+        })}
       </nav>
     </div>
   );

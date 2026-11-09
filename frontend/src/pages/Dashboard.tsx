@@ -40,7 +40,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Hero: today's split day */}
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface-card to-surface p-6 lg:col-span-2 lg:p-8 animate-fade-up" data-testid="today-card">
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface-card to-surface p-5 lg:col-span-2 lg:p-8 animate-fade-up" data-testid="today-card">
           <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-volt/10 blur-3xl" />
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             {t ? `${WEEKDAYS[t.weekday]} · ${t.split.name}` : "Scheduled"}
@@ -50,10 +50,10 @@ export default function Dashboard() {
           ) : t?.is_rest ? (
             <div className="mt-2 flex items-center gap-3">
               <BedDouble className="size-8 text-cyan-focus" />
-              <h2 className="text-4xl font-extrabold tracking-tight" data-testid="today-template-name">Rest day</h2>
+              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl" data-testid="today-template-name">Rest day</h2>
             </div>
           ) : (
-            <h2 className="mt-2 text-4xl font-extrabold tracking-tight sm:text-5xl" data-testid="today-template-name">{t?.template?.name ?? "—"}</h2>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-5xl" data-testid="today-template-name">{t?.template?.name ?? "—"}</h2>
           )}
           {t?.template && (
             <div className="mt-4 flex flex-wrap gap-1.5" data-testid="today-exercise-list">
@@ -67,19 +67,19 @@ export default function Dashboard() {
           )}
           {t?.is_rest && <p className="mt-3 max-w-md text-sm text-muted-foreground">Recovery is training too. Want to move anyway? Start a quick session.</p>}
 
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap gap-3">
             {hasActive ? (
-              <Link to="/workout/active" className={cn(buttonVariants(), "h-12 px-6 text-base font-bold")} data-testid="dashboard-resume-workout-button">
+              <Link to="/workout/active" className={cn(buttonVariants(), "h-13 px-6 text-base font-bold active:scale-[0.97]")} data-testid="dashboard-resume-workout-button">
                 <Play className="size-4" /> Resume {active.data?.name}
               </Link>
             ) : (
               <>
                 {t?.template && (
-                  <StartWorkoutButton body={{ template_id: t.template!.id, name: null }} className="h-12 px-6 text-base font-bold" testid="dashboard-start-workout-button">
+                  <StartWorkoutButton body={{ template_id: t.template!.id, name: null }} className="h-13 px-6 text-base font-bold active:scale-[0.97]" testid="dashboard-start-workout-button">
                     <Play className="size-4" /> Start {t.template.name}
                   </StartWorkoutButton>
                 )}
-                <StartWorkoutButton body={{ template_id: null, name: null }} variant="outline" className="h-12 px-5" testid="dashboard-quick-workout-button">
+                <StartWorkoutButton body={{ template_id: null, name: null }} variant="outline" className="h-13 px-5 active:scale-[0.97]" testid="dashboard-quick-workout-button">
                   <Plus className="size-4" /> Quick empty workout
                 </StartWorkoutButton>
               </>

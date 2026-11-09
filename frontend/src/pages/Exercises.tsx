@@ -93,7 +93,7 @@ export default function Exercises() {
       )}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="exercise-list">
         {filtered.map((e) => (
-          <div key={e.id} className="group flex min-h-16 items-center justify-between gap-2 rounded-lg border border-border bg-surface-card/60 px-4 py-3 transition-colors hover:border-input" data-testid={`exercise-item-${slug(e.name)}`}>
+          <div key={e.id} className="group flex min-h-[64px] items-center justify-between gap-2 rounded-xl border border-border bg-surface-card/60 px-4 py-3 transition-colors hover:border-input active:bg-surface-active" data-testid={`exercise-item-${slug(e.name)}`}>
             <div className="min-w-0">
               <p className="truncate font-semibold">{e.name}</p>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -103,11 +103,11 @@ export default function Exercises() {
               </p>
             </div>
             <div className="flex shrink-0">
-              <Link to={`/analytics?exercise=${e.id}`} className="grid size-10 place-items-center rounded-md text-muted-foreground transition-colors hover:text-volt" aria-label="View progress" data-testid={`exercise-progress-link-${slug(e.name)}`}>
+              <Link to={`/analytics?exercise=${e.id}`} className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-volt active:scale-95" aria-label="View progress" data-testid={`exercise-progress-link-${slug(e.name)}`}>
                 <TrendingUp className="size-4" />
               </Link>
               {e.is_custom && (
-                <button type="button" onClick={() => del.mutate(e.id)} className="grid size-10 place-items-center rounded-md text-muted-foreground transition-colors hover:text-crimson" aria-label="Delete exercise" data-testid={`exercise-delete-${slug(e.name)}`}>
+                <button type="button" onClick={() => del.mutate(e.id)} className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-crimson active:scale-95" aria-label="Delete exercise" data-testid={`exercise-delete-${slug(e.name)}`}>
                   <Trash2 className="size-4" />
                 </button>
               )}

@@ -83,13 +83,13 @@ export default function ExercisePicker({
                 setQ("");
               }}
               data-testid={`exercise-picker-option-${slug(e.name)}`}
-              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-active"
+              className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-surface-active active:bg-surface-active active:scale-[0.98]"
             >
               <span>
-                <span className="block text-sm font-semibold">{e.name}</span>
+                <span className="block text-base font-semibold">{e.name}</span>
                 <span className="text-xs text-muted-foreground">{e.equipment}{e.is_custom ? " · Custom" : ""}</span>
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="size-2 rounded-full" style={{ background: MUSCLE_COLORS[e.muscle_group] }} />
                 {e.muscle_group}
               </span>

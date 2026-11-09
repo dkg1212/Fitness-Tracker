@@ -58,7 +58,7 @@ function SplitForm({ split, templates, todayWeekday }: { split: Split; templates
                 }}
                 aria-label={`${WEEKDAYS[d.weekday]} workout`}
                 data-testid={`split-day-select-${d.weekday}`}
-                className="h-12 w-full cursor-pointer appearance-auto rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground outline-none transition-colors hover:border-volt focus:border-volt"
+                className="h-14 w-full cursor-pointer appearance-auto rounded-xl border border-input bg-background px-4 text-base font-medium text-foreground outline-none transition-colors hover:border-volt focus:border-volt"
               >
                 <option value={REST}>Rest day</option>
                   {templates.map((t) => (
