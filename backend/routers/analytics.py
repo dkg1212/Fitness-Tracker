@@ -1,3 +1,17 @@
+"""
+Analytics router.
+
+Performance notes
+─────────────────
+• All endpoints use a slim MongoDB projection so we never deserialize `loading_inputs`
+  (the heaviest per-set field) unless actually needed.
+• `exercise_progress` filters by exercises.exercise_id in the DB query so we only
+  load workouts that actually contain the requested exercise.
+• `_completed_slim` is shared; it loads only the fields needed for volume, PRs,
+  and muscle workload — not full set payloads.
+"""
+from __future__ import annotations
+
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -22,13 +36,41 @@ from models.workout import Workout
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+# Slim projection — omit loading_inputs (can be large) and other non-numeric fields.
+# Must include all required Workout and WorkoutExercise fields (those without defaults).
+_SLIM_PROJ = {
+    "_id": 0,
+    "id": 1,
+    "name": 1,
+    "date": 1,
+    "status": 1,
+    "template_id": 1,
+    "started_at": 1,
+    "finished_at": 1,
+    "exercises.exercise_id": 1,
+    "exercises.exercise_name": 1,
+    "exercises.muscle_group": 1,
+    "exercises.equipment": 1,
+    "exercises.sets.completed": 1,
+    "exercises.sets.set_type": 1,
+    "exercises.sets.weight": 1,
+    "exercises.sets.reps": 1,
+    "exercises.sets.weight_note": 1,
+    # intentionally excludes: loading_inputs, notes, exercise_config, rest_seconds, effort_mode, uid
+}
+
 
 def _week_start(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
-async def _completed(user_id: str) -> list[Workout]:
-    docs = await db.workouts.find({"user_id": user_id, "status": "completed"}, {"_id": 0}).sort("date", 1).to_list(5000)
+async def _completed_slim(user_id: str) -> list[Workout]:
+    """Load completed workouts with the slim projection sorted oldest-first."""
+    docs = (
+        await db.workouts.find({"user_id": user_id, "status": "completed"}, _SLIM_PROJ)
+        .sort("date", 1)
+        .to_list(10_000)
+    )
     return [Workout(**d) for d in docs]
 
 
@@ -38,7 +80,7 @@ def _fmt_num(v: float) -> str:
 
 @router.get("/summary", response_model=AnalyticsSummary)
 async def summary(user: dict = Depends(current_user)):
-    workouts = await _completed(user["id"])
+    workouts = await _completed_slim(user["id"])
     today = date.fromisoformat(today_iso())
     this_week = _week_start(today)
 
@@ -46,19 +88,25 @@ async def summary(user: dict = Depends(current_user)):
     for w in workouts:
         by_week[_week_start(date.fromisoformat(w.date))].append(w)
 
+    # Last 12 weeks of volume
     weekly = []
     for i in range(11, -1, -1):
         ws = this_week - timedelta(weeks=i)
         items = by_week.get(ws, [])
-        weekly.append(WeeklyVolume(week_start=ws.isoformat(), volume=round(sum(workout_volume(w) for w in items), 1),
-                                   workouts=len(items)))
+        weekly.append(WeeklyVolume(
+            week_start=ws.isoformat(),
+            volume=round(sum(workout_volume(w) for w in items), 1),
+            workouts=len(items),
+        ))
 
+    # Week streak (consecutive weeks with ≥1 workout)
     streak = 0
     cursor = this_week if by_week.get(this_week) else this_week - timedelta(weeks=1)
     while by_week.get(cursor):
         streak += 1
         cursor -= timedelta(weeks=1)
 
+    # Muscle workload for last 4 weeks
     cutoff = (today - timedelta(days=27)).isoformat()
     sets_by_mg: dict[str, int] = defaultdict(int)
     vol_by_mg: dict[str, float] = defaultdict(float)
@@ -69,6 +117,7 @@ async def summary(user: dict = Depends(current_user)):
             for s in working_sets(ex):
                 sets_by_mg[ex.muscle_group] += 1
                 vol_by_mg[ex.muscle_group] += set_volume(s)
+
     workload = sorted(
         (MuscleWorkload(muscle_group=mg, sets=n, volume=round(vol_by_mg[mg], 1)) for mg, n in sets_by_mg.items()),
         key=lambda m: m.sets,
@@ -94,25 +143,35 @@ async def summary(user: dict = Depends(current_user)):
 
 @router.get("/exercise/{exercise_id}", response_model=ExerciseProgress)
 async def exercise_progress(exercise_id: str, user: dict = Depends(current_user)):
-    workouts = await _completed(user["id"])
+    # Only load workouts that actually contain this exercise (index on exercises.exercise_id)
+    docs = (
+        await db.workouts.find(
+            {"user_id": user["id"], "status": "completed", "exercises.exercise_id": exercise_id},
+            _SLIM_PROJ,
+        )
+        .sort("date", 1)
+        .to_list(2_000)
+    )
+    workouts = [Workout(**d) for d in docs]
+
     name = ""
     points: list[ExerciseProgressPoint] = []
     for w in workouts:
         sets = [s for ex in w.exercises if ex.exercise_id == exercise_id for s in working_sets(ex)]
         if not sets:
             continue
-        name = next(ex.exercise_name for ex in w.exercises if ex.exercise_id == exercise_id)
-        equip = next((ex.equipment for ex in w.exercises if ex.exercise_id == exercise_id), None)
+        ex_match = next(ex for ex in w.exercises if ex.exercise_id == exercise_id)
+        name = ex_match.exercise_name
+        equip = ex_match.equipment
         best = max(sets, key=lambda s: epley_for_equipment(s.weight, s.reps, equip))
-        points.append(
-            ExerciseProgressPoint(
-                date=w.date,
-                top_weight=max((s.weight or 0) for s in sets),
-                e1rm=epley_for_equipment(best.weight, best.reps, equip),
-                volume=round(sum(set_volume(s) for s in sets), 1),
-                best_set=f"{_fmt_num(best.weight or 0)} × {best.reps}",
-            )
-        )
+        points.append(ExerciseProgressPoint(
+            date=w.date,
+            top_weight=max((s.weight or 0) for s in sets),
+            e1rm=epley_for_equipment(best.weight, best.reps, equip),
+            volume=round(sum(set_volume(s) for s in sets), 1),
+            best_set=f"{_fmt_num(best.weight or 0)} × {best.reps}",
+        ))
+
     if not name:
         doc = await db.exercises.find_one({"id": exercise_id}, {"_id": 0, "name": 1})
         name = doc["name"] if doc else ""
@@ -122,18 +181,21 @@ async def exercise_progress(exercise_id: str, user: dict = Depends(current_user)
 @router.get("/sub-muscle", response_model=SubMuscleBreakdown)
 async def sub_muscle_breakdown(user: dict = Depends(current_user)):
     """
-    Count primary and secondary working-set volume by detailed sub-muscle for the last 4 weeks.
-
-    Rules:
-    - Only completed, non-warmup sets with reps are counted (same definition as workload/volume).
-    - Primary muscles get FULL set/volume credit.
-    - Secondary muscles get 0.5 set credit and 0.5 volume credit — they are helpers, not the target.
-    - Exercises with no metadata in EXERCISE_META are attributed to their main muscle_group only.
-    - Existing workout/PR/volume calculations are not touched.
+    Primary and secondary working-set counts for the last 4 weeks only.
+    Uses a date-filtered query so we don't load the full workout history.
     """
-    workouts = await _completed(user["id"])
     today = date.fromisoformat(today_iso())
     cutoff = (today - timedelta(days=27)).isoformat()
+
+    docs = (
+        await db.workouts.find(
+            {"user_id": user["id"], "status": "completed", "date": {"$gte": cutoff}},
+            _SLIM_PROJ,
+        )
+        .sort("date", 1)
+        .to_list(500)
+    )
+    workouts = [Workout(**d) for d in docs]
 
     primary_sets: dict[str, int] = defaultdict(int)
     primary_vol: dict[str, float] = defaultdict(float)
@@ -141,8 +203,6 @@ async def sub_muscle_breakdown(user: dict = Depends(current_user)):
     secondary_vol: dict[str, float] = defaultdict(float)
 
     for w in workouts:
-        if w.date < cutoff:
-            continue
         for ex in w.exercises:
             meta = EXERCISE_META.get(ex.exercise_name)
             ws = working_sets(ex)
@@ -150,32 +210,25 @@ async def sub_muscle_breakdown(user: dict = Depends(current_user)):
                 continue
             n_sets = len(ws)
             vol = sum(set_volume(s) for s in ws)
-
             if meta:
                 ex_type, pm, sm = meta
-                # Primary muscles — full credit
                 for muscle in pm:
                     primary_sets[muscle] += n_sets
                     primary_vol[muscle] += vol
-                # Secondary muscles — half credit (assisting, not primary target)
                 for muscle in sm:
                     secondary_sets[muscle] += n_sets * 0.5
                     secondary_vol[muscle] += vol * 0.5
             else:
-                # No detailed meta — fall back to main muscle group
                 primary_sets[ex.muscle_group] += n_sets
                 primary_vol[ex.muscle_group] += vol
 
     primary_out = sorted(
         [SubMuscleWorkload(muscle=m, sets=n, volume=round(primary_vol[m], 1)) for m, n in primary_sets.items()],
-        key=lambda x: x.sets,
-        reverse=True,
+        key=lambda x: x.sets, reverse=True,
     )
     secondary_out = sorted(
-        [SubMuscleWorkload(muscle=m, sets=round(n, 1), volume=round(secondary_vol[m], 1)) for m, n in secondary_sets.items()
-         if m not in primary_sets],  # exclude muscles already counted as primary
-        key=lambda x: x.sets,
-        reverse=True,
+        [SubMuscleWorkload(muscle=m, sets=round(n, 1), volume=round(secondary_vol[m], 1))
+         for m, n in secondary_sets.items() if m not in primary_sets],
+        key=lambda x: x.sets, reverse=True,
     )
-
     return SubMuscleBreakdown(primary=primary_out, secondary=secondary_out)

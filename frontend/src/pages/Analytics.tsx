@@ -9,7 +9,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageHeader from "@/components/PageHeader";
 import { apiGet } from "@/lib/api";
-import type { AnalyticsSummary, ExerciseProgress, SubMuscleBreakdown } from "@/lib/types";
+import { useAnalyticsSummary } from "@/lib/hooks";
+import type { ExerciseProgress, SubMuscleBreakdown } from "@/lib/types";
 import { fmtDate, fmtKg, fmtVolume, MUSCLE_COLORS } from "@/lib/workout";
 
 const AXIS = { stroke: "#64748B", fontSize: 10, fontFamily: "JetBrains Mono Variable" };
@@ -101,6 +102,7 @@ function SubMuscleCard() {
   const q = useQuery({
     queryKey: ["analytics", "sub-muscle"],
     queryFn: () => apiGet<SubMuscleBreakdown>("/analytics/sub-muscle"),
+    staleTime: 5 * 60_000,
   });
   const data = q.isError ? undefined : q.data;
   const primary = (data?.primary ?? []).slice(0, 12);
@@ -227,10 +229,7 @@ function PRTable({ prs, onSelect }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Analytics() {
   const [params, setParams] = useSearchParams();
-  const summaryQ = useQuery({
-    queryKey: ["analytics", "summary"],
-    queryFn: () => apiGet<AnalyticsSummary>("/analytics/summary"),
-  });
+  const summaryQ = useAnalyticsSummary();
   const s = summaryQ.isError ? undefined : summaryQ.data;
   const selected = params.get("exercise") ?? s?.prs[0]?.exercise_id ?? "";
 
@@ -238,6 +237,7 @@ export default function Analytics() {
     queryKey: ["analytics", "exercise", selected],
     queryFn: () => apiGet<ExerciseProgress>(`/analytics/exercise/${selected}`),
     enabled: !!selected,
+    staleTime: 5 * 60_000,
   });
   const progress = progressQ.isError ? undefined : progressQ.data;
 

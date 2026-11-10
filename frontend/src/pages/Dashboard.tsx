@@ -1,12 +1,10 @@
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { BedDouble, BookOpen, CheckCircle2, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight, Dumbbell, TrendingUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
 import StartWorkoutButton from "@/components/StartWorkoutButton";
-import { apiGet } from "@/lib/api";
-import { useActiveWorkout, useMe } from "@/lib/hooks";
-import type { AnalyticsSummary, TodayInfo, WorkoutSummary } from "@/lib/types";
+import { useActiveWorkout, useAnalyticsSummary, useMe, useRecentWorkouts, useTodayInfo } from "@/lib/hooks";
+import type { WorkoutSummary } from "@/lib/types";
 import { fmtDate, fmtKg, fmtVolume, MUSCLE_COLORS, WEEKDAYS, WEEKDAYS_SHORT } from "@/lib/workout";
 import { cn } from "@/lib/utils";
 
@@ -41,15 +39,9 @@ function StatCard({
 
 export default function Dashboard() {
   const me = useMe();
-  const today = useQuery({ queryKey: ["today"], queryFn: () => apiGet<TodayInfo>("/today") });
-  const summary = useQuery({
-    queryKey: ["analytics", "summary"],
-    queryFn: () => apiGet<AnalyticsSummary>("/analytics/summary"),
-  });
-  const recent = useQuery({
-    queryKey: ["workouts", "recent"],
-    queryFn: () => apiGet<WorkoutSummary[]>("/workouts?limit=5"),
-  });
+  const today = useTodayInfo();
+  const summary = useAnalyticsSummary();
+  const recent = useRecentWorkouts(5);
   const active = useActiveWorkout();
 
   const t = today.isError ? undefined : today.data;

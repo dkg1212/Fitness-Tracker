@@ -74,7 +74,9 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
     });
 
   const invalidateAll = () => {
-    for (const key of [["workouts"], ["analytics"], ["today"], ["previous"]]) qc.invalidateQueries({ queryKey: key });
+    for (const key of [["workouts"], ["analytics"], ["today"], ["previous"], ["history"]]) {
+      qc.invalidateQueries({ queryKey: key });
+    }
   };
 
   const finishM = useMutation({

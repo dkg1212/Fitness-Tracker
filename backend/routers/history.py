@@ -1,26 +1,22 @@
 """
 History & consistency router.
 
-Endpoints
-─────────
-GET  /history/stats              All-time stats + streaks + consistency %
-GET  /history/calendar           Month calendar with per-day status
-POST /history/split-snapshot     (internal) save a split snapshot
-GET  /history/splits             All historical split snapshots for the user
+Performance notes
+─────────────────
+• /history/stats:  Fetches only the `date` field from workouts (tiny payload).
+  Three DB calls run in parallel via asyncio.gather.
+  The day-loop uses a pre-built weekday lookup dict so _split_for_date is O(1).
 
-Design notes
-────────────
-• Streaks count consecutive calendar days with ≥1 completed workout.
-  Rest days do NOT break a streak (streaks are workout-day based, not schedule-based).
-• Consistency uses the user's split history to determine what was scheduled on
-  each past day.  If no split history exists yet (feature is new for existing
-  users) the CURRENT split is assumed to have been in effect since the user's
-  first workout — this is a sensible bootstrap and is clearly called out.
-• All date arithmetic uses the APP_TZ timezone (defaults to UTC) so results
-  agree with the workout.date field, which is also set via today_iso().
+• /history/calendar: Fetches only the requested month's workout documents
+  (date-range filter) plus slim fields needed for CalendarWorkoutSummary.
+  Split history and current split are fetched in parallel.
+
+• /history/splits:  Thin metadata only; no exercise data loaded.
 """
 from __future__ import annotations
 
+import asyncio
+import calendar as _cal
 import os
 from collections import defaultdict
 from datetime import date, timedelta
@@ -46,11 +42,34 @@ router = APIRouter(prefix="/history", tags=["history"])
 
 TZ = ZoneInfo(os.getenv("APP_TZ", "UTC"))
 
+# ─── Minimal projections ──────────────────────────────────────────────────────
+
+# For consistency stats we only need the date string — nothing else.
+_DATE_PROJ = {"_id": 0, "date": 1}
+
+# For the calendar detail we need enough to compute volume/sets/duration.
+# Must include all required Workout + WorkoutExercise fields (those without defaults).
+_CAL_PROJ = {
+    "_id": 0,
+    "id": 1,
+    "name": 1,
+    "date": 1,
+    "status": 1,
+    "started_at": 1,
+    "finished_at": 1,
+    "exercises.exercise_id": 1,
+    "exercises.exercise_name": 1,
+    "exercises.muscle_group": 1,
+    "exercises.sets.completed": 1,
+    "exercises.sets.set_type": 1,
+    "exercises.sets.weight": 1,
+    "exercises.sets.reps": 1,
+}
+
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _week_start(d: date) -> date:
-    """Monday of the week containing d."""
     return d - timedelta(days=d.weekday())
 
 
@@ -58,17 +77,37 @@ def _month_start(d: date) -> date:
     return d.replace(day=1)
 
 
-async def _get_completed(user_id: str) -> list[Workout]:
+async def _get_workout_dates(user_id: str) -> list[str]:
+    """Return just the date strings of all completed workouts, sorted ascending."""
     docs = (
-        await db.workouts.find({"user_id": user_id, "status": "completed"}, {"_id": 0})
+        await db.workouts.find({"user_id": user_id, "status": "completed"}, _DATE_PROJ)
         .sort("date", 1)
-        .to_list(10000)
+        .to_list(20_000)
+    )
+    return [d["date"] for d in docs]
+
+
+async def _get_month_workouts(user_id: str, year: int, month: int) -> list[Workout]:
+    """Fetch only workouts that fall within the requested month."""
+    _, days_in_month = _cal.monthrange(year, month)
+    month_start = f"{year:04d}-{month:02d}-01"
+    month_end = f"{year:04d}-{month:02d}-{days_in_month:02d}"
+    docs = (
+        await db.workouts.find(
+            {
+                "user_id": user_id,
+                "status": "completed",
+                "date": {"$gte": month_start, "$lte": month_end},
+            },
+            _CAL_PROJ,
+        )
+        .sort("date", 1)
+        .to_list(200)   # max ~6 workouts/day × 31 days; generous upper bound
     )
     return [Workout(**d) for d in docs]
 
 
 async def _get_split_history(user_id: str) -> list[SplitHistoryRecord]:
-    """Return all split snapshots for the user, sorted oldest-first."""
     docs = (
         await db.split_history.find({"user_id": user_id}, {"_id": 0})
         .sort("effective_from", 1)
@@ -77,83 +116,74 @@ async def _get_split_history(user_id: str) -> list[SplitHistoryRecord]:
     return [SplitHistoryRecord(**d) for d in docs]
 
 
+async def _load_current_split_days(user_id: str) -> list[SplitHistoryDay]:
+    doc = await db.splits.find_one({"user_id": user_id}, {"_id": 0})
+    if not doc:
+        return []
+    return [SplitHistoryDay(**d) for d in doc.get("days", [])]
+
+
 def _split_for_date(
     history: list[SplitHistoryRecord],
-    d: date,
+    d_iso: str,
     current_split_days: list[SplitHistoryDay],
-) -> list[SplitHistoryDay] | None:
-    """
-    Return the split days that were active on a given date.
-    Falls back to current_split_days if no history covers that date.
-    """
-    d_iso = d.isoformat()
-    # Walk history newest-first to find the record active on date d
+) -> list[SplitHistoryDay]:
+    """Return the split days active on d_iso. Walk newest-first for O(history_len) overall."""
     for rec in reversed(history):
         if rec.effective_from <= d_iso:
             if rec.effective_to is None or d_iso < rec.effective_to:
                 return rec.days
-    # No matching snapshot — fall back to current split (bootstrap for existing users)
     return current_split_days
 
 
-def _workout_days_set(workouts: list[Workout]) -> set[str]:
-    """Set of unique ISO dates that have at least one completed workout."""
-    return {w.date for w in workouts}
-
-
-def _compute_streaks(workout_dates: set[str], today: date) -> tuple[int, int]:
+def _compute_streaks(sorted_dates: list[str], today: date) -> tuple[int, int]:
     """
+    sorted_dates: unique workout date strings sorted ascending.
     Returns (current_streak, longest_streak).
-    Streak = consecutive calendar days with ≥1 workout, working backwards from today.
-    Rest days do NOT count as training days (they simply don't appear in workout_dates).
     """
-    if not workout_dates:
+    if not sorted_dates:
         return 0, 0
 
-    # Longest streak — scan all dates
-    sorted_days = sorted(date.fromisoformat(d) for d in workout_dates)
+    dates_set = set(sorted_dates)
+
+    # Longest
     longest = 1
     run = 1
-    for i in range(1, len(sorted_days)):
-        if sorted_days[i] - sorted_days[i - 1] == timedelta(days=1):
+    prev = date.fromisoformat(sorted_dates[0])
+    for iso in sorted_dates[1:]:
+        cur = date.fromisoformat(iso)
+        if (cur - prev).days == 1:
             run += 1
-            longest = max(longest, run)
+            if run > longest:
+                longest = run
         else:
             run = 1
+        prev = cur
 
-    # Current streak — walk backwards from today (or yesterday if today has no workout)
+    # Current — walk back from today
     current = 0
     cursor = today
-    while cursor.isoformat() in workout_dates:
+    while cursor.isoformat() in dates_set:
         current += 1
         cursor -= timedelta(days=1)
-    # Also try starting from yesterday (today may still be upcoming)
     if current == 0:
+        # Today hasn't been worked out yet — try from yesterday
         cursor = today - timedelta(days=1)
-        while cursor.isoformat() in workout_dates:
+        while cursor.isoformat() in dates_set:
             current += 1
             cursor -= timedelta(days=1)
 
     return current, max(longest, current)
 
 
-def _consistency(
-    past_scheduled: list[str],   # ISO dates that WERE scheduled (non-rest) and have passed
-    workout_days: set[str],
-) -> tuple[int, int, float]:
-    """Returns (completed, missed, pct)."""
-    completed = sum(1 for d in past_scheduled if d in workout_days)
-    missed = len(past_scheduled) - completed
-    pct = round(completed / len(past_scheduled) * 100, 1) if past_scheduled else 0.0
-    return completed, missed, pct
-
-
-async def _load_current_split_days(user_id: str) -> list[SplitHistoryDay]:
-    doc = await db.splits.find_one({"user_id": user_id}, {"_id": 0})
-    if not doc:
-        return []
-    days_raw = doc.get("days", [])
-    return [SplitHistoryDay(**d) for d in days_raw]
+def _build_weekday_lookup(
+    split_days: list[SplitHistoryDay],
+) -> dict[int, SplitHistoryDay | None]:
+    """Map weekday (0=Mon…6=Sun) → SplitHistoryDay or None for quick O(1) access."""
+    lookup: dict[int, SplitHistoryDay | None] = {i: None for i in range(7)}
+    for sd in split_days:
+        lookup[sd.weekday] = sd
+    return lookup
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
@@ -161,78 +191,101 @@ async def _load_current_split_days(user_id: str) -> list[SplitHistoryDay]:
 @router.get("/stats", response_model=ConsistencyStats)
 async def consistency_stats(user: dict = Depends(current_user)):
     today = date.fromisoformat(today_iso())
-    workouts = await _get_completed(user["id"])
-    split_history = await _get_split_history(user["id"])
-    current_split_days = await _load_current_split_days(user["id"])
 
-    if not workouts:
-        return ConsistencyStats(
-            total_sessions=0,
-            total_workout_days=0,
-            this_week_sessions=0,
-            this_month_sessions=0,
-            this_year_sessions=0,
-            current_streak=0,
-            longest_streak=0,
-            weekly_consistency_pct=0.0,
-            monthly_consistency_pct=0.0,
-            all_time_consistency_pct=0.0,
-            scheduled_days_total=0,
-            completed_scheduled_days=0,
-            missed_scheduled_days=0,
-        )
+    # Parallel DB fetch — only dates needed for stats
+    workout_dates, split_history, current_split_days = await asyncio.gather(
+        _get_workout_dates(user["id"]),
+        _get_split_history(user["id"]),
+        _load_current_split_days(user["id"]),
+    )
 
-    workout_days = _workout_days_set(workouts)
-    first_date = date.fromisoformat(min(workout_days))
+    _empty = ConsistencyStats(
+        total_sessions=0, total_workout_days=0,
+        this_week_sessions=0, this_month_sessions=0, this_year_sessions=0,
+        current_streak=0, longest_streak=0,
+        weekly_consistency_pct=0.0, monthly_consistency_pct=0.0,
+        all_time_consistency_pct=0.0,
+        scheduled_days_total=0, completed_scheduled_days=0, missed_scheduled_days=0,
+    )
+    if not workout_dates:
+        return _empty
 
-    # Period boundaries
+    unique_days = sorted(set(workout_dates))
+    total_sessions = len(workout_dates)
+    total_workout_days = len(unique_days)
+
     this_week_start = _week_start(today)
     this_month_start = _month_start(today)
     this_year_start = date(today.year, 1, 1)
+    wk_iso = this_week_start.isoformat()
+    mo_iso = this_month_start.isoformat()
+    yr_iso = this_year_start.isoformat()
 
-    this_week_sessions = sum(1 for w in workouts if w.date >= this_week_start.isoformat())
-    this_month_sessions = sum(1 for w in workouts if w.date >= this_month_start.isoformat())
-    this_year_sessions = sum(1 for w in workouts if w.date >= this_year_start.isoformat())
+    this_week_sessions = sum(1 for d in workout_dates if d >= wk_iso)
+    this_month_sessions = sum(1 for d in workout_dates if d >= mo_iso)
+    this_year_sessions = sum(1 for d in workout_dates if d >= yr_iso)
 
-    current_streak, longest_streak = _compute_streaks(workout_days, today)
+    current_streak, longest_streak = _compute_streaks(unique_days, today)
 
-    # Build list of past scheduled (non-rest) days
-    all_past_scheduled: list[str] = []
-    week_past_scheduled: list[str] = []
-    month_past_scheduled: list[str] = []
+    # Pre-build split weekday lookups keyed by effective_from for O(1) day lookup
+    # Build scheduled day lists by walking calendar days
+    workout_days_set = set(unique_days)
+    first_date = date.fromisoformat(unique_days[0])
+
+    all_scheduled: list[str] = []
+    week_scheduled: list[str] = []
+    month_scheduled: list[str] = []
+
+    # Cache the split lookup for the most-recently seen split to avoid repeated
+    # _split_for_date traversals on consecutive days in the same period.
+    _cached_split_iso: str | None = None
+    _cached_lookup: dict[int, SplitHistoryDay | None] = {}
 
     cursor = first_date
+    today_iso_str = today.isoformat()
     while cursor < today:
-        split_days = _split_for_date(split_history, cursor, current_split_days)
-        if split_days:
-            weekday = cursor.weekday()  # 0=Mon
-            day_entry = next((d for d in split_days if d.weekday == weekday), None)
-            is_scheduled = day_entry is not None and day_entry.template_id is not None
-            if is_scheduled:
-                iso = cursor.isoformat()
-                all_past_scheduled.append(iso)
-                if cursor >= this_week_start:
-                    week_past_scheduled.append(iso)
-                if cursor >= this_month_start:
-                    month_past_scheduled.append(iso)
+        c_iso = cursor.isoformat()
+        split_days = _split_for_date(split_history, c_iso, current_split_days)
+
+        # Rebuild the lookup only when the active split might have changed.
+        # Simple heuristic: re-build whenever the split days reference differs.
+        if split_days is not _cached_split_iso:  # type: ignore[comparison-overlap]
+            _cached_lookup = _build_weekday_lookup(split_days)
+            _cached_split_iso = split_days  # type: ignore[assignment]
+
+        entry = _cached_lookup.get(cursor.weekday())
+        if entry and entry.template_id:
+            all_scheduled.append(c_iso)
+            if c_iso >= wk_iso:
+                week_scheduled.append(c_iso)
+            if c_iso >= mo_iso:
+                month_scheduled.append(c_iso)
         cursor += timedelta(days=1)
 
-    comp_all, missed_all, pct_all = _consistency(all_past_scheduled, workout_days)
-    _, _, pct_week = _consistency(week_past_scheduled, workout_days)
-    _, _, pct_month = _consistency(month_past_scheduled, workout_days)
+    def _pct(lst: list[str]) -> float:
+        if not lst:
+            return 0.0
+        done = sum(1 for d in lst if d in workout_days_set)
+        return round(done / len(lst) * 100, 1)
+
+    def _counts(lst: list[str]) -> tuple[int, int]:
+        done = sum(1 for d in lst if d in workout_days_set)
+        return done, len(lst) - done
+
+    comp_all, missed_all = _counts(all_scheduled)
 
     return ConsistencyStats(
-        total_sessions=len(workouts),
-        total_workout_days=len(workout_days),
+        total_sessions=total_sessions,
+        total_workout_days=total_workout_days,
         this_week_sessions=this_week_sessions,
         this_month_sessions=this_month_sessions,
         this_year_sessions=this_year_sessions,
         current_streak=current_streak,
         longest_streak=longest_streak,
-        weekly_consistency_pct=pct_week,
-        monthly_consistency_pct=pct_month,
-        all_time_consistency_pct=pct_all,
-        scheduled_days_total=len(all_past_scheduled),
+        weekly_consistency_pct=_pct(week_scheduled),
+        monthly_consistency_pct=_pct(month_scheduled),
+        all_time_consistency_pct=_pct(all_scheduled),
+        scheduled_days_total=len(all_scheduled),
         completed_scheduled_days=comp_all,
         missed_scheduled_days=missed_all,
     )
@@ -245,36 +298,36 @@ async def calendar_view(
     user: dict = Depends(current_user),
 ):
     today = date.fromisoformat(today_iso())
-    workouts = await _get_completed(user["id"])
-    split_history = await _get_split_history(user["id"])
-    current_split_days = await _load_current_split_days(user["id"])
 
-    # Group workouts by date
+    # Parallel: only fetch workouts for the requested month
+    month_workouts, split_history, current_split_days = await asyncio.gather(
+        _get_month_workouts(user["id"], year, month),
+        _get_split_history(user["id"]),
+        _load_current_split_days(user["id"]),
+    )
+
     by_date: dict[str, list[Workout]] = defaultdict(list)
-    for w in workouts:
+    for w in month_workouts:
         by_date[w.date].append(w)
 
-    # Build calendar days for the entire month
-    import calendar as _cal
     _, days_in_month = _cal.monthrange(year, month)
     result: list[CalendarDay] = []
 
     for day_num in range(1, days_in_month + 1):
         d = date(year, month, day_num)
         d_iso = d.isoformat()
-        split_days = _split_for_date(split_history, d, current_split_days)
+        split_days = _split_for_date(split_history, d_iso, current_split_days)
 
         is_scheduled = False
         is_rest = True
         scheduled_template_name: str | None = None
 
-        if split_days:
-            weekday = d.weekday()
-            day_entry = next((sd for sd in split_days if sd.weekday == weekday), None)
-            if day_entry:
-                is_scheduled = day_entry.template_id is not None
-                is_rest = not is_scheduled
-                scheduled_template_name = day_entry.template_name if is_scheduled else None
+        lookup = _build_weekday_lookup(split_days)
+        entry = lookup.get(d.weekday())
+        if entry:
+            is_scheduled = entry.template_id is not None
+            is_rest = not is_scheduled
+            scheduled_template_name = entry.template_name if is_scheduled else None
 
         day_workouts = by_date.get(d_iso, [])
         workout_summaries = [
@@ -288,7 +341,6 @@ async def calendar_view(
             for w in day_workouts
         ]
 
-        # Determine status
         if d > today:
             status = "future" if is_scheduled else "rest"
         elif d == today:
@@ -300,16 +352,14 @@ async def calendar_view(
         else:
             status = "rest"
 
-        result.append(
-            CalendarDay(
-                date=d_iso,
-                status=status,
-                is_scheduled=is_scheduled,
-                is_rest=is_rest,
-                scheduled_template_name=scheduled_template_name,
-                workouts=workout_summaries,
-            )
-        )
+        result.append(CalendarDay(
+            date=d_iso,
+            status=status,
+            is_scheduled=is_scheduled,
+            is_rest=is_rest,
+            scheduled_template_name=scheduled_template_name,
+            workouts=workout_summaries,
+        ))
 
     return CalendarResponse(year=year, month=month, days=result)
 

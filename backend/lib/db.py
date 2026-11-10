@@ -9,7 +9,6 @@ from pymongo import ASCENDING, DESCENDING, IndexModel
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 client = AsyncIOMotorClient(
-    # Credentials belong in backend/.env (which is ignored by Git), never in source.
     os.getenv("MONGODB_URI", "mongodb://127.0.0.1:27017"),
     serverSelectionTimeoutMS=5000,
 )
@@ -32,6 +31,8 @@ INDEXES = {
     "splits": [IndexModel([("user_id", ASCENDING)], name="user_id", unique=True)],
     "split_history": [
         IndexModel([("user_id", ASCENDING), ("effective_from", ASCENDING)], name="user_from"),
+        # Covered by queries filtering on effective_to: null (open snapshots)
+        IndexModel([("user_id", ASCENDING), ("effective_to", ASCENDING)], name="user_effective_to"),
     ],
     "workouts": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
@@ -45,6 +46,17 @@ INDEXES = {
         IndexModel(
             [("user_id", ASCENDING), ("status", ASCENDING), ("date", DESCENDING), ("started_at", DESCENDING)],
             name="user_status_date",
+        ),
+        # Used by analytics exercise_progress, /previous sets, and PR detection.
+        # Multikey index on the embedded exercises array.
+        IndexModel(
+            [("user_id", ASCENDING), ("exercises.exercise_id", ASCENDING)],
+            name="user_exercise_id",
+        ),
+        # Used by /today completed_today check: template_id + date + status
+        IndexModel(
+            [("user_id", ASCENDING), ("status", ASCENDING), ("template_id", ASCENDING), ("date", DESCENDING)],
+            name="user_status_template_date",
         ),
     ],
 }

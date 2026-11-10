@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pymongo import ReturnDocument
 
 from lib.auth import current_user
 from lib.dates import today_iso
@@ -19,6 +20,25 @@ from models.workout import (
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 
 _SORT = [("date", -1), ("started_at", -1)]
+
+# Projection for list endpoints — avoids deserialising full set payloads.
+_LIST_PROJ = {
+    "_id": 0,
+    "id": 1,
+    "name": 1,
+    "date": 1,
+    "status": 1,
+    "template_id": 1,
+    "started_at": 1,
+    "finished_at": 1,
+    "exercises.exercise_id": 1,
+    "exercises.exercise_name": 1,
+    "exercises.muscle_group": 1,
+    "exercises.sets.completed": 1,
+    "exercises.sets.set_type": 1,
+    "exercises.sets.weight": 1,
+    "exercises.sets.reps": 1,
+}
 
 
 async def _get_owned(id: str, user_id: str) -> Workout:
@@ -42,7 +62,7 @@ def _update_fields(body: WorkoutUpdate) -> dict:
 
 @router.get("", response_model=list[WorkoutSummary])
 async def list_workouts(limit: int = Query(100, ge=1, le=500), user: dict = Depends(current_user)):
-    docs = await db.workouts.find({"user_id": user["id"], "status": "completed"}, {"_id": 0}).sort(_SORT).to_list(limit)
+    docs = await db.workouts.find({"user_id": user["id"], "status": "completed"}, _LIST_PROJ).sort(_SORT).to_list(limit)
     return [summarize(Workout(**d)) for d in docs]
 
 
@@ -110,9 +130,15 @@ async def get_workout(id: str, user: dict = Depends(current_user)):
 
 @router.put("/{id}", response_model=Workout)
 async def update_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
-    await _get_owned(id, user["id"])
-    await db.workouts.update_one({"id": id, "user_id": user["id"]}, {"$set": _update_fields(body)})
-    return await _get_owned(id, user["id"])
+    doc = await db.workouts.find_one_and_update(
+        {"id": id, "user_id": user["id"]},
+        {"$set": _update_fields(body)},
+        projection={"_id": 0},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return Workout(**doc)
 
 
 @router.post("/{id}/finish", response_model=FinishResult)

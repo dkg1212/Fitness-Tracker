@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Activity,
@@ -33,12 +33,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
-import { apiDelete, apiGet } from "@/lib/api";
-import { useCalendar, useConsistencyStats, useSplitHistory } from "@/lib/hooks";
+import { apiDelete } from "@/lib/api";
+import { useCalendar, useConsistencyStats, useHistoryList, useSplitHistory } from "@/lib/hooks";
 import type {
   CalendarDay,
   CalendarWorkoutSummary,
-  ConsistencyStats,
   SplitHistoryRecord,
   WorkoutSummary,
 } from "@/lib/types";
@@ -241,7 +240,7 @@ function ConsistencyTab() {
         {history.length > 0 && (
           <div className="space-y-2">
             {[...history].reverse().map((rec, i) => (
-              <SplitHistoryCard key={i} record={rec} isCurrent={i === 0} />
+              <SplitHistoryCard key={rec.effective_from} record={rec} isCurrent={i === 0} />
             ))}
           </div>
         )}
@@ -340,12 +339,14 @@ function CalendarTab() {
   };
   const isCurrentOrPast = year < today.getFullYear() || (year === today.getFullYear() && month <= today.getMonth() + 1);
 
-  // Pad with leading empty cells (Mon=0 offset)
-  const firstDay = days[0] ? new Date(`${days[0].date}T00:00:00`).getDay() : 1;
-  // JS: 0=Sun…6=Sat → convert to Mon-first (0=Mon…6=Sun)
-  const offset = (firstDay === 0 ? 6 : firstDay - 1);
+  // Stable handler — doesn't change between renders unless `selected` changes
+  const handleDayClick = useCallback((day: CalendarDay) => {
+    setSelected((prev) => prev?.date === day.date ? null : day);
+  }, []);
 
-  // Summary for the month
+  const firstDay = days[0] ? new Date(`${days[0].date}T00:00:00`).getDay() : 1;
+  const offset = firstDay === 0 ? 6 : firstDay - 1;
+
   const done = days.filter((d) => d.status === "done").length;
   const missed = days.filter((d) => d.status === "missed").length;
   const scheduled = days.filter((d) => d.is_scheduled && d.status !== "future" && d.status !== "today").length;
@@ -421,11 +422,11 @@ function CalendarTab() {
               <div key={`pad-${i}`} />
             ))}
             {days.map((day) => (
-              <CalendarCell
+              <MemoCalendarCell
                 key={day.date}
                 day={day}
                 isSelected={selected?.date === day.date}
-                onClick={() => setSelected(selected?.date === day.date ? null : day)}
+                onClick={handleDayClick}
               />
             ))}
           </div>
@@ -463,7 +464,7 @@ function CalendarCell({
 }: {
   day: CalendarDay;
   isSelected: boolean;
-  onClick: () => void;
+  onClick: (day: CalendarDay) => void;
 }) {
   const dayNum = parseInt(day.date.slice(8), 10);
   const isClickable = day.status !== "rest" && day.status !== "none";
@@ -484,12 +485,11 @@ function CalendarCell({
     <button
       type="button"
       className={cellCls}
-      onClick={isClickable ? onClick : undefined}
+      onClick={isClickable ? () => onClick(day) : undefined}
       disabled={!isClickable}
       title={day.scheduled_template_name ?? undefined}
     >
       <span>{dayNum}</span>
-      {/* Dot indicator for completed workouts */}
       {hasWorkouts && (
         <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
           {day.workouts.slice(0, 3).map((_, i) => (
@@ -500,6 +500,7 @@ function CalendarCell({
     </button>
   );
 }
+const MemoCalendarCell = memo(CalendarCell);
 
 function DayDetail({ day }: { day: CalendarDay }) {
   const d = new Date(`${day.date}T00:00:00`);
@@ -580,10 +581,7 @@ function WorkoutCard({ workout: w }: { workout: CalendarWorkoutSummary }) {
 
 function ListTab() {
   const qc = useQueryClient();
-  const list = useQuery({
-    queryKey: ["workouts", "list"],
-    queryFn: () => apiGet<WorkoutSummary[]>("/workouts?limit=500"),
-  });
+  const list = useHistoryList(500);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [toDelete, setToDelete] = useState<WorkoutSummary | null>(null);
