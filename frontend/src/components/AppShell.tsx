@@ -3,7 +3,7 @@ import { NavLink, Navigate, Outlet, useLocation, Link, useNavigate } from "react
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import {
   CalendarDays, Dumbbell, History, Layers, LayoutDashboard,
-  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown, X,
+  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown, X, BookOpen,
 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { useActiveWorkout, useMe } from "@/lib/hooks";
@@ -17,6 +17,7 @@ const SIDE = [
   { label: "Templates",        to: "/templates",      icon: Layers,          testid: "side-templates" },
   { label: "Exercise Library", to: "/exercises",      icon: Dumbbell,        testid: "side-exercises" },
   { label: "Progress & 1RM",   to: "/analytics",      icon: TrendingUp,      testid: "side-analytics" },
+  { label: "User Guide",       to: "/guide",          icon: BookOpen,        testid: "side-guide" },
 ];
 
 const BOTTOM = [
@@ -112,6 +113,18 @@ function MobileAccountSheet({
               <UserRound className="size-5" />
             </span>
             Edit profile
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { navigate("/guide"); onClose(); }}
+            data-testid="account-menu-guide"
+            className="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-base font-semibold text-foreground transition-colors active:bg-surface-active"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-cyan-focus/10 text-cyan-focus">
+              <BookOpen className="size-5" />
+            </span>
+            User guide
           </button>
 
           <button
@@ -244,6 +257,17 @@ function DesktopAccountDropdown({
           >
             <UserRound className="size-4 shrink-0 text-volt" />
             Edit profile
+          </button>
+          <div className="mx-3 h-px bg-border/60" />
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => { navigate("/guide"); setOpen(false); }}
+            data-testid="account-menu-guide"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-active"
+          >
+            <BookOpen className="size-4 shrink-0 text-cyan-focus" />
+            User guide
           </button>
           <div className="mx-3 h-px bg-border/60" />
           <button

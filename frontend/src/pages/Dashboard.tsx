@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight, Dumbbell, TrendingUp } from "lucide-react";
+import { BedDouble, BookOpen, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight, Dumbbell, TrendingUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
 import StartWorkoutButton from "@/components/StartWorkoutButton";
@@ -75,6 +75,26 @@ export default function Dashboard() {
         }
         testid="dashboard-title"
       />
+
+      {/* New-user guide banner — shown when there are no completed workouts yet */}
+      {s && s.total_workouts === 0 && (
+        <Link
+          to="/guide"
+          className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-cyan-focus/30 bg-cyan-focus/8 px-4 py-3.5 transition-colors hover:border-cyan-focus/50 hover:bg-cyan-focus/12 animate-fade-up"
+          data-testid="guide-banner"
+        >
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-cyan-focus/15 text-cyan-focus">
+              <BookOpen className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-foreground">New to IronCore?</p>
+              <p className="text-xs text-muted-foreground">Read the user guide to get started in 2 minutes.</p>
+            </div>
+          </div>
+          <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+        </Link>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Hero: today's split day */}

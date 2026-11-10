@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import Analytics from "@/pages/Analytics";
 import Dashboard from "@/pages/Dashboard";
 import Exercises from "@/pages/Exercises";
+import Guide from "@/pages/Guide";
 import History from "@/pages/History";
 import Logger from "@/pages/Logger";
 import Login from "@/pages/Login";
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/split" element={<SplitPlanner />} />
           <Route path="/exercises" element={<Exercises />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/guide" element={<Guide />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
