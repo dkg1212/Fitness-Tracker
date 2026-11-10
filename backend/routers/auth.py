@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from lib.auth import current_user
@@ -5,6 +7,9 @@ from lib.db import db
 from models.auth import OkResponse, ProfileUpdate, UserPublic
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Current onboarding schema version — bump this if you add new tour steps
+ONBOARDING_VERSION = 1
 
 
 @router.post("/logout", response_model=OkResponse)
@@ -26,4 +31,36 @@ async def update_profile(body: ProfileUpdate, user: dict = Depends(current_user)
         {"id": user["id"]},
         {"$set": {"name": name, "weight_kg": body.weight_kg, "height_cm": body.height_cm, "sex": body.sex}},
     )
-    return UserPublic(id=user["id"], email=user["email"], name=name, weight_kg=body.weight_kg, height_cm=body.height_cm, sex=body.sex)
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return UserPublic(**updated)
+
+
+@router.post("/onboarding/complete", response_model=UserPublic)
+async def complete_onboarding(user: dict = Depends(current_user)):
+    """Mark onboarding as completed for the current user."""
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "onboarding_completed": True,
+            "onboarding_completed_at": now,
+            "onboarding_version": ONBOARDING_VERSION,
+        }},
+    )
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return UserPublic(**updated)
+
+
+@router.post("/onboarding/reset", response_model=UserPublic)
+async def reset_onboarding(user: dict = Depends(current_user)):
+    """Reset onboarding status so the tour can be replayed."""
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "onboarding_completed": False,
+            "onboarding_completed_at": None,
+            "onboarding_version": 0,
+        }},
+    )
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return UserPublic(**updated)

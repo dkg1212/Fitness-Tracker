@@ -26,7 +26,18 @@ export interface LoginRequest { email: string; password: string }
 export interface RegisterRequest extends LoginRequest { name: string; weight_kg: number; height_cm: number }
 export type Sex = "male" | "female";
 export interface ProfileUpdate { name: string; weight_kg: number; height_cm: number; sex: Sex }
-export interface User { id: string; email: string; name: string; weight_kg: number | null; height_cm: number | null; sex: Sex | null }
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  weight_kg: number | null;
+  height_cm: number | null;
+  sex: Sex | null;
+  /** Whether the user has completed the interactive onboarding tour */
+  onboarding_completed: boolean;
+  onboarding_completed_at: string | null;
+  onboarding_version: number;
+}
 
 // models/exercise.py
 export interface ExerciseCreate {

@@ -21,6 +21,10 @@ class UserPublic(BaseModel):
     weight_kg: float | None = None
     height_cm: float | None = None
     sex: Literal["male", "female"] | None = None
+    # Onboarding fields — backward-compatible defaults for existing users
+    onboarding_completed: bool = False
+    onboarding_completed_at: str | None = None
+    onboarding_version: int = 0
 
 
 class ProfileUpdate(BaseModel):

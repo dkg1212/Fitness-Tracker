@@ -148,6 +148,8 @@
     /* Smooth momentum scrolling on iOS */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    /* Expose safe-area-inset-bottom as a CSS variable for JS to read */
+    --sab: env(safe-area-inset-bottom, 0px);
     }
   html {
     @apply font-sans;

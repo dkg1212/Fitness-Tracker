@@ -16,6 +16,29 @@ export const useTemplates = () =>
 export const useActiveWorkout = () =>
   useQuery({ queryKey: ["workout", "active"], queryFn: () => apiGet<Workout | null>("/workouts/active") });
 
+/** Mark the onboarding tour as completed. Updates the "me" cache immediately. */
+export function useCompleteOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<User>("/auth/onboarding/complete"),
+    onSuccess: (updated) => {
+      qc.setQueryData(["me"], updated);
+    },
+  });
+}
+
+/** Reset onboarding so the tour can be replayed. Updates the "me" cache immediately. */
+export function useResetOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<User>("/auth/onboarding/reset"),
+    onSuccess: (updated) => {
+      qc.setQueryData(["me"], updated);
+    },
+    onError: () => toast.error("Couldn't reset onboarding. Try again."),
+  });
+}
+
 /** Start a workout (empty or from a template) and jump into the logger. */
 export function useStartWorkout() {
   const qc = useQueryClient();

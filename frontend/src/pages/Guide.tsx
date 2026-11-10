@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BookOpen, Dumbbell, BarChart2, CalendarDays, Layers,
   Play, CheckCircle, Zap, Target, Timer, TrendingUp,
   Star, Shield, RefreshCw, Flame, ListChecks,
-  PlusCircle, Settings, Award, ChevronRight,
+  PlusCircle, Settings, Award, ChevronRight, MapPin,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { useResetOnboarding } from "@/lib/hooks";
+import { ALL_TUTORIALS } from "@/components/OnboardingTour";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -295,6 +299,14 @@ function StepCard({ step, index, isLast }: { step: Step; index: number; isLast: 
 export default function Guide() {
   const [active, setActive] = useState("start");
   const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
+  const navigate = useNavigate();
+  const resetOnboarding = useResetOnboarding();
+
+  const handleReplayTour = () => {
+    resetOnboarding.mutate(undefined, {
+      onSuccess: () => navigate("/"),
+    });
+  };
 
   const handleSelect = (id: string) => {
     setActive(id);
@@ -303,10 +315,83 @@ export default function Guide() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="Help" title="User guide" testid="guide-title" />
+      <PageHeader
+        eyebrow="Help"
+        title="User guide"
+        testid="guide-title"
+        actions={
+          <Button
+            variant="outline"
+            onClick={handleReplayTour}
+            disabled={resetOnboarding.isPending}
+            data-testid="guide-replay-tour-button"
+            className="h-10 gap-2 px-4 text-sm font-semibold"
+          >
+            <MapPin className="size-4 text-volt" />
+            {resetOnboarding.isPending ? "Starting…" : "Replay app tour"}
+          </Button>
+        }
+      />
       <p className="mb-5 text-sm text-muted-foreground">
         Everything you need to get the most out of IronCore — from your first workout to reading your analytics.
       </p>
+
+      {/* ── Interactive Tutorials ──────────────────────────────────────── */}
+      <section className="mb-7 animate-fade-up" data-testid="tutorials-section">
+        <div className="mb-3 flex items-center gap-2">
+          <MapPin className="size-4 text-volt" />
+          <h2 className="font-heading text-base font-bold uppercase tracking-wide text-foreground sm:text-lg">
+            Interactive Tutorials
+          </h2>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Step-by-step walkthroughs that highlight the actual interface. Tap any card to launch.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Full App Tour card */}
+          <button
+            type="button"
+            onClick={handleReplayTour}
+            disabled={resetOnboarding.isPending}
+            data-testid="tutorial-card-app-tour"
+            className="group flex items-start gap-3 rounded-2xl border border-border bg-surface-card/60 p-4 text-left transition-colors hover:border-volt/40 hover:bg-surface-card active:scale-[0.98]"
+          >
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-volt/15 text-volt">
+              <MapPin className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-heading text-sm font-bold text-foreground">Complete App Tour</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Walk through every section of IronCore — 8 steps, ~2 min.
+              </p>
+            </div>
+            <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          {/* Individual tutorials */}
+          {ALL_TUTORIALS.map((tutorial) => {
+            const Icon = tutorial.icon;
+            return (
+              <button
+                key={tutorial.id}
+                type="button"
+                onClick={() => navigate(`/?tutorial=${tutorial.id}`)}
+                data-testid={`tutorial-card-${tutorial.id}`}
+                className="group flex items-start gap-3 rounded-2xl border border-border bg-surface-card/60 p-4 text-left transition-colors hover:border-volt/40 hover:bg-surface-card active:scale-[0.98]"
+              >
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-surface-active text-muted-foreground">
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-sm font-bold text-foreground">{tutorial.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{tutorial.description}</p>
+                </div>
+                <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {/* ── Mobile tab strip (full-width, above content) ──────────────── */}
       <div className="-mx-4 mb-5 overflow-x-auto px-4 lg:hidden">

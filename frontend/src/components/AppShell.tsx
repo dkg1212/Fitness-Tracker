@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { NavLink, Navigate, Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import {
   CalendarDays, Dumbbell, History, Layers, LayoutDashboard,
-  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown, X, BookOpen,
+  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown, X, BookOpen, MapPin,
 } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { useActiveWorkout, useMe } from "@/lib/hooks";
+import { useActiveWorkout, useMe, useResetOnboarding } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
+import OnboardingTour, {
+  APP_TOUR_STEPS,
+  ALL_TUTORIALS,
+  type TourStep,
+} from "@/components/OnboardingTour";
 
 const SIDE = [
   { label: "Dashboard",        to: "/",               icon: LayoutDashboard, testid: "side-dashboard" },
@@ -42,18 +47,19 @@ function Brand() {
 }
 
 // ─── Mobile bottom sheet account menu ────────────────────────────────────────
-// Slides up from bottom — the correct mobile pattern, needs zero position math.
 
 function MobileAccountSheet({
   open,
   onClose,
   displayName,
   initial,
+  onReplayTour,
 }: {
   open: boolean;
   onClose: () => void;
   displayName: string;
   initial: string;
+  onReplayTour: () => void;
 }) {
   const navigate = useNavigate();
   const { signOut } = useClerk();
@@ -61,12 +67,11 @@ function MobileAccountSheet({
   if (!open) return null;
 
   return (
-    // Full-screen overlay
     <div
       className="fixed inset-0 z-[999] flex flex-col justify-end"
       style={{ WebkitOverflowScrolling: "touch" }}
     >
-      {/* Dimmed backdrop — tap to close */}
+      {/* Dimmed backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -101,7 +106,7 @@ function MobileAccountSheet({
 
         <div className="mx-4 mb-2 h-px bg-border/60" />
 
-        {/* Menu items — large tap targets */}
+        {/* Menu items */}
         <div className="flex flex-col gap-1 px-3 pb-4">
           <button
             type="button"
@@ -127,6 +132,19 @@ function MobileAccountSheet({
             User guide
           </button>
 
+          {/* ── Replay App Tour ── */}
+          <button
+            type="button"
+            onClick={() => { onReplayTour(); onClose(); }}
+            data-testid="account-menu-replay-tour"
+            className="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-base font-semibold text-foreground transition-colors active:bg-surface-active"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-volt/10 text-volt">
+              <MapPin className="size-5" />
+            </span>
+            Replay app tour
+          </button>
+
           <button
             type="button"
             onClick={() => void signOut({ redirectUrl: "/login" })}
@@ -145,16 +163,17 @@ function MobileAccountSheet({
 }
 
 // ─── Desktop dropdown account menu ───────────────────────────────────────────
-// Standard absolute dropdown for desktop — no mobile involvement.
 
 function DesktopAccountDropdown({
   displayName,
   initial,
   variant,
+  onReplayTour,
 }: {
   displayName: string;
   initial: string;
   variant: "topbar" | "sidebar";
+  onReplayTour: () => void;
 }) {
   const navigate = useNavigate();
   const { signOut } = useClerk();
@@ -165,8 +184,7 @@ function DesktopAccountDropdown({
   // Close on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
-  // Close on outside click / Escape — delayed so the opening click doesn't
-  // immediately close the menu
+  // Close on outside click / Escape
   useEffect(() => {
     if (!open) return;
     const timer = window.setTimeout(() => {
@@ -244,7 +262,7 @@ function DesktopAccountDropdown({
         <div
           role="menu"
           className={cn(
-            "absolute z-50 w-52 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl",
+            "absolute z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl",
             isTopbar ? "right-0 top-full mt-1.5" : "bottom-full left-0 mb-1.5",
           )}
         >
@@ -270,6 +288,20 @@ function DesktopAccountDropdown({
             User guide
           </button>
           <div className="mx-3 h-px bg-border/60" />
+
+          {/* ── Replay App Tour ── */}
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => { onReplayTour(); setOpen(false); }}
+            data-testid="account-menu-replay-tour"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-active"
+          >
+            <MapPin className="size-4 shrink-0 text-volt" />
+            Replay app tour
+          </button>
+          <div className="mx-3 h-px bg-border/60" />
+
           <button
             role="menuitem"
             type="button"
@@ -296,6 +328,83 @@ export default function AppShell() {
   const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // ── Onboarding tour state ────────────────────────────────────────────────
+  const [tourActive, setTourActive] = useState(false);
+  const [tourSteps, setTourSteps] = useState<TourStep[]>(APP_TOUR_STEPS);
+  const [isTutorial, setIsTutorial] = useState(false);
+  const autoStartedRef = useRef(false);
+
+  const resetOnboarding = useResetOnboarding();
+
+  // Auto-start the tour for new users once profile is complete
+  useEffect(() => {
+    if (
+      !autoStartedRef.current &&
+      me.data &&
+      me.data.weight_kg &&
+      me.data.height_cm &&
+      me.data.sex &&
+      !me.data.onboarding_completed &&
+      pathname !== "/profile"
+    ) {
+      autoStartedRef.current = true;
+      setTourSteps(APP_TOUR_STEPS);
+      setIsTutorial(false);
+      setTourActive(true);
+    }
+  }, [me.data, pathname]);
+
+  // Launch a specific tutorial via ?tutorial=<id> query param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tutorialId = params.get("tutorial");
+    if (!tutorialId || !me.data?.weight_kg) return;
+
+    if (tutorialId === "app-tour") {
+      // Remove the param so it doesn't re-trigger
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tutorial");
+      window.history.replaceState({}, "", url.toString());
+      setTourSteps(APP_TOUR_STEPS);
+      setIsTutorial(false);
+      setTourActive(true);
+      return;
+    }
+
+    const tutorial = ALL_TUTORIALS.find((t) => t.id === tutorialId);
+    if (tutorial) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tutorial");
+      window.history.replaceState({}, "", url.toString());
+      setTourSteps(tutorial.steps);
+      setIsTutorial(true);
+      setTourActive(true);
+    }
+  // Only run when me.data first loads and when pathname changes (navigation after ?tutorial= nav)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.data, pathname]);
+
+  // "Replay app tour" — resets in DB then starts the full tour
+  const handleReplayTour = useCallback(() => {
+    resetOnboarding.mutate(undefined, {
+      onSuccess: () => {
+        setTourSteps(APP_TOUR_STEPS);
+        setIsTutorial(false);
+        setTourActive(true);
+      },
+    });
+  }, [resetOnboarding]);
+
+  const handleTourSkip = useCallback(() => {
+    // Skip = dismiss without marking complete; tour will show again next login
+    // unless the user explicitly replays and finishes it.
+    setTourActive(false);
+  }, []);
+
+  const handleTourComplete = useCallback(() => {
+    setTourActive(false);
+  }, []);
+
   // Close mobile sheet on navigation
   useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
 
@@ -312,6 +421,7 @@ export default function AppShell() {
 
   const displayName = user?.username ?? me.data?.name ?? "Athlete";
   const initial = displayName.slice(0, 1).toUpperCase();
+  const firstName = me.data?.name?.split(" ")[0] ?? displayName;
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -349,7 +459,12 @@ export default function AppShell() {
           })}
         </nav>
         <div className="mt-4 border-t border-sidebar-border pt-4">
-          <DesktopAccountDropdown displayName={displayName} initial={initial} variant="sidebar" />
+          <DesktopAccountDropdown
+            displayName={displayName}
+            initial={initial}
+            variant="sidebar"
+            onReplayTour={handleReplayTour}
+          />
         </div>
       </aside>
 
@@ -398,13 +513,19 @@ export default function AppShell() {
         onClose={() => setMobileMenuOpen(false)}
         displayName={displayName}
         initial={initial}
+        onReplayTour={handleReplayTour}
       />
 
       {/* ── Main content ─────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-6xl px-4 pb-36 pt-4 sm:px-6 lg:px-10 lg:pb-16 lg:pt-6">
         {/* Desktop topbar account */}
         <div className="mb-5 hidden items-center justify-end lg:flex">
-          <DesktopAccountDropdown displayName={displayName} initial={initial} variant="topbar" />
+          <DesktopAccountDropdown
+            displayName={displayName}
+            initial={initial}
+            variant="topbar"
+            onReplayTour={handleReplayTour}
+          />
         </div>
         <Outlet />
       </main>
@@ -455,6 +576,18 @@ export default function AppShell() {
           );
         })}
       </nav>
+
+      {/* ── Onboarding tour (portal, renders above everything) ───────── */}
+      {tourActive && (
+        <OnboardingTour
+          userName={firstName}
+          autoStart={tourActive}
+          steps={tourSteps}
+          isTutorial={isTutorial}
+          onSkip={handleTourSkip}
+          onComplete={handleTourComplete}
+        />
+      )}
     </div>
   );
 }
