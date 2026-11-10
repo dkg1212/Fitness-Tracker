@@ -7,7 +7,25 @@ export interface ExerciseMeta {
   exerciseType: "Compound" | "Isolation";
   primaryMuscles: string[];
   secondaryMuscles: string[];
+  /**
+   * Time-based exercises (Plank, Dead Hang, etc.) are measured in seconds
+   * rather than reps. The logger shows a duration field + countdown timer
+   * instead of reps + RPE/RIR.
+   */
+  isTimeBased?: boolean;
 }
+
+/** Set of exercise names that are measured in time, not reps. */
+export const TIME_BASED_EXERCISES = new Set([
+  "Plank",
+  "Side Plank",
+  "Dead Hang",
+  "Wall Sit",
+  "L-Sit",
+  "Hollow Body Hold",
+  "Superman Hold",
+  "Glute Bridge", // can be timed
+]);
 
 export const EXERCISE_META: Record<string, ExerciseMeta> = {
   // CHEST
@@ -80,7 +98,7 @@ export const EXERCISE_META: Record<string, ExerciseMeta> = {
   "Skull Crusher": { exerciseType: "Isolation", primaryMuscles: ["Triceps Long Head", "Triceps Lateral Head"], secondaryMuscles: ["Triceps Medial Head"] },
   "Bench Dip": { exerciseType: "Compound", primaryMuscles: ["Triceps"], secondaryMuscles: ["Front Deltoids", "Middle Chest"] },
   // CORE
-  "Plank": { exerciseType: "Isolation", primaryMuscles: ["Rectus Abdominis", "Transverse Abdominis"], secondaryMuscles: ["Obliques", "Lower Back"] },
+  "Plank": { exerciseType: "Isolation", primaryMuscles: ["Rectus Abdominis", "Transverse Abdominis"], secondaryMuscles: ["Obliques", "Lower Back"], isTimeBased: true },
   "Hanging Leg Raise": { exerciseType: "Isolation", primaryMuscles: ["Rectus Abdominis", "Hip Flexors"], secondaryMuscles: ["Obliques"] },
   "Cable Crunch": { exerciseType: "Isolation", primaryMuscles: ["Rectus Abdominis"], secondaryMuscles: ["Obliques"] },
   "Ab Wheel Rollout": { exerciseType: "Compound", primaryMuscles: ["Rectus Abdominis", "Transverse Abdominis"], secondaryMuscles: ["Lats", "Triceps Long Head"] },

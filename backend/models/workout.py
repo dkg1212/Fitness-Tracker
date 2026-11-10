@@ -16,21 +16,16 @@ class WorkoutSet(BaseModel):
     uid: str = Field(default_factory=_uid)
     set_type: SetType = "N"
     # `weight` is the canonical load used for volume / e1RM calculations.
-    # For barbells it is total barbell load; for dumbbells it is per-dumbbell weight;
-    # for cable/machine it is stack weight; for bodyweight it is bodyweight (+added, −assisted).
-    # Existing records that set weight directly continue to work unchanged.
     weight: float | None = Field(default=None, ge=0, le=5000)
     reps: int | None = Field(default=None, ge=0, le=1000)
     rpe: float | None = Field(default=None, ge=0, le=10)
     rir: float | None = Field(default=None, ge=0, le=10)
     completed: bool = False
-
+    # Duration in seconds — for time-based exercises (Plank, Dead Hang, etc.)
+    # When set, reps / RPE / RIR are not used.
+    duration_seconds: int | None = Field(default=None, ge=0, le=7200)
     # --- Equipment-specific raw inputs (optional, backward-compatible) ---
-    # These store exactly what the user entered before any calculation.
-    # Absent on legacy sets — consumers must handle None gracefully.
     loading_inputs: dict[str, Any] | None = Field(default=None)
-    # Human-readable note about what `weight` represents for display.
-    # e.g. "per dumbbell", "total barbell load", "stack weight"
     weight_note: str | None = Field(default=None, max_length=80)
 
 

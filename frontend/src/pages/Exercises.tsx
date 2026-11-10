@@ -581,7 +581,7 @@ export default function Exercises() {
         title="Exercise library"
         testid="exercises-title"
         actions={
-          <Button onClick={openCreate} className="h-11 font-bold" data-testid="exercise-create-button">
+          <Button onClick={openCreate} className="h-10 px-4 text-sm font-bold sm:h-11" data-testid="exercise-create-button">
             <Plus className="size-4" /> Custom exercise
           </Button>
         }
@@ -599,44 +599,46 @@ export default function Exercises() {
         />
       </div>
 
-      {/* Muscle group filter chips */}
-      <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
-        <button
-          type="button"
-          onClick={() => setGroup(null)}
-          data-testid="muscle-group-filter-all"
-          className={cn(
-            "h-9 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors",
-            !group ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
-          )}
-        >
-          All
-        </button>
-        {MUSCLE_GROUPS.map((g) => (
+      {/* Muscle group filter chips — horizontal scroll on mobile */}
+      <div className="-mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-2 pb-2">
           <button
-            key={g}
             type="button"
-            onClick={() => setGroup(group === g ? null : g)}
-            data-testid={`muscle-group-filter-${slug(g)}`}
+            onClick={() => setGroup(null)}
+            data-testid="muscle-group-filter-all"
             className={cn(
-              "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors",
-              group === g ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
+              "h-9 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors",
+              !group ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
-            <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[g] }} />
-            {g}
-            <span className="font-mono text-xs opacity-60">{counts[g] ?? 0}</span>
+            All
           </button>
-        ))}
+          {MUSCLE_GROUPS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGroup(group === g ? null : g)}
+              data-testid={`muscle-group-filter-${slug(g)}`}
+              className={cn(
+                "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors",
+                group === g ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[g] }} />
+              {g}
+              <span className="font-mono text-xs opacity-60">{counts[g] ?? 0}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Compound / Isolation filter */}
-      <div className="-mx-1 mb-6 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <div className="mb-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setTypeFilter(null)}
           className={cn(
-            "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "h-8 rounded-full border px-3 text-xs font-semibold transition-colors",
             !typeFilter ? "border-border bg-surface-active text-foreground" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >
@@ -646,7 +648,7 @@ export default function Exercises() {
           type="button"
           onClick={() => setTypeFilter(typeFilter === "Compound" ? null : "Compound")}
           className={cn(
-            "flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
             typeFilter === "Compound" ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >
@@ -657,7 +659,7 @@ export default function Exercises() {
           type="button"
           onClick={() => setTypeFilter(typeFilter === "Isolation" ? null : "Isolation")}
           className={cn(
-            "flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
             typeFilter === "Isolation" ? "border-cyan-focus bg-cyan-focus/15 text-cyan-focus" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >

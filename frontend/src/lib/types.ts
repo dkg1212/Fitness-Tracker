@@ -111,7 +111,9 @@ export interface WorkoutSet {
   rir: number | null;
   completed: boolean;
   loading_inputs?: LoadingInputs | null;
-  weight_note?: string | null; // "per dumbbell", "total barbell load", etc.
+  weight_note?: string | null;
+  /** Duration in seconds — for time-based exercises like Plank. Replaces reps+RPE/RIR. */
+  duration_seconds?: number | null;
 }
 /** Exercise-level config — set once for the whole exercise, not per set.
  *  Stored on WorkoutExercise. Per-set loading_inputs only holds the variable part.
