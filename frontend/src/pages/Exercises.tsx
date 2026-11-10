@@ -419,13 +419,18 @@ function ExerciseCard({
       className="group rounded-xl border border-border bg-surface-card/60 transition-colors hover:border-input"
       data-testid={`exercise-item-${slug(e.name)}`}
     >
-      <div className="flex min-h-[64px] items-center justify-between gap-2 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-semibold">{e.name}</p>
+      {/* ── Main row ── */}
+      <div className="flex items-start justify-between gap-2 px-3 py-3 sm:px-4">
+        {/* Left: text content */}
+        <div className="min-w-0 flex-1 pt-0.5">
+          {/* Name + type badge on same line, badge wraps below if needed */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="font-semibold leading-snug">{e.name}</p>
             <TypeBadge type={e.exercise_type ?? null} />
           </div>
-          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+
+          {/* Muscle / equipment row */}
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
             <span
               className="size-1.5 shrink-0 rounded-full"
               style={{ background: MUSCLE_COLORS[e.muscle_group] ?? "#94A3B8" }}
@@ -434,33 +439,36 @@ function ExerciseCard({
             <span className="text-border">·</span>
             <span>{e.equipment}</span>
             {e.is_custom && (
-              <span className="rounded bg-cyan-focus/15 px-1.5 text-[10px] font-semibold uppercase text-cyan-focus">
+              <span className="rounded bg-cyan-focus/15 px-1.5 py-px text-[10px] font-semibold uppercase text-cyan-focus">
                 Custom
               </span>
             )}
           </p>
+
+          {/* Primary muscles preview (collapsed state) */}
           {!expanded && (e.primary_muscles?.length ?? 0) > 0 && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
               <span className="text-foreground/60">Primary:</span>{" "}
               {e.primary_muscles.join(", ")}
             </p>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center">
+        {/* Right: action buttons — compact column on mobile */}
+        <div className="flex shrink-0 items-center gap-0.5">
           {hasMeta && (
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? "Collapse details" : "Expand details"}
-              className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-foreground active:scale-95"
+              className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-foreground active:scale-95 sm:size-10"
             >
               {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             </button>
           )}
           <Link
             to={`/analytics?exercise=${e.id}`}
-            className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-volt active:scale-95"
+            className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-volt active:scale-95 sm:size-10"
             aria-label="View progress"
             data-testid={`exercise-progress-link-${slug(e.name)}`}
           >
@@ -470,7 +478,7 @@ function ExerciseCard({
             <button
               type="button"
               onClick={onEdit}
-              className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-cyan-focus active:scale-95"
+              className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-cyan-focus active:scale-95 sm:size-10"
               aria-label="Edit exercise"
               data-testid={`exercise-edit-${slug(e.name)}`}
             >
@@ -481,7 +489,7 @@ function ExerciseCard({
             <button
               type="button"
               onClick={onDelete}
-              className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:text-crimson active:scale-95"
+              className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-active hover:text-crimson active:scale-95 sm:size-10"
               aria-label="Delete exercise"
               data-testid={`exercise-delete-${slug(e.name)}`}
             >
@@ -491,15 +499,21 @@ function ExerciseCard({
         </div>
       </div>
 
+      {/* ── Expanded detail panel ── */}
       {expanded && hasMeta && (
-        <div className="border-t border-border px-4 pb-3 pt-2.5">
+        <div className="border-t border-border px-3 pb-3 pt-2.5 sm:px-4">
           <div className="flex flex-wrap gap-4 text-xs">
             {(e.primary_muscles?.length ?? 0) > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Primary</p>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Primary
+                </p>
                 <div className="flex flex-wrap gap-1">
                   {e.primary_muscles.map((m) => (
-                    <span key={m} className="rounded-full bg-volt/10 px-2 py-0.5 text-[11px] font-semibold text-volt">
+                    <span
+                      key={m}
+                      className="rounded-full bg-volt/10 px-2 py-0.5 text-[11px] font-semibold text-volt"
+                    >
                       {m}
                     </span>
                   ))}
@@ -508,10 +522,15 @@ function ExerciseCard({
             )}
             {(e.secondary_muscles?.length ?? 0) > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Secondary</p>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Secondary
+                </p>
                 <div className="flex flex-wrap gap-1">
                   {e.secondary_muscles.map((m) => (
-                    <span key={m} className="rounded-full bg-surface-active px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                    <span
+                      key={m}
+                      className="rounded-full bg-surface-active px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
+                    >
                       {m}
                     </span>
                   ))}
@@ -594,20 +613,20 @@ export default function Exercises() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search exercises…"
-          className="h-12 pl-10"
+          className="h-11 pl-10 text-sm"
           data-testid="exercise-search-input"
         />
       </div>
 
-      {/* Muscle group filter chips — horizontal scroll on mobile */}
-      <div className="-mx-4 mb-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <div className="flex gap-2 pb-2">
+      {/* Muscle group filter chips — horizontal scroll, no visible scrollbar */}
+      <div className="-mx-4 mb-2.5 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-1.5 pb-1.5 sm:gap-2 sm:pb-2">
           <button
             type="button"
             onClick={() => setGroup(null)}
             data-testid="muscle-group-filter-all"
             className={cn(
-              "h-9 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors",
+              "h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold transition-colors sm:h-9 sm:px-4 sm:text-sm",
               !group ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
@@ -620,25 +639,25 @@ export default function Exercises() {
               onClick={() => setGroup(group === g ? null : g)}
               data-testid={`muscle-group-filter-${slug(g)}`}
               className={cn(
-                "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors",
+                "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold transition-colors sm:h-9 sm:px-4 sm:text-sm",
                 group === g ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
-              <span className="size-1.5 rounded-full" style={{ background: MUSCLE_COLORS[g] }} />
+              <span className="size-1.5 shrink-0 rounded-full" style={{ background: MUSCLE_COLORS[g] }} />
               {g}
-              <span className="font-mono text-xs opacity-60">{counts[g] ?? 0}</span>
+              <span className="font-mono text-[10px] opacity-60 sm:text-xs">{counts[g] ?? 0}</span>
             </button>
           ))}
         </div>
       </div>
 
       {/* Compound / Isolation filter */}
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-1.5 sm:gap-2">
         <button
           type="button"
           onClick={() => setTypeFilter(null)}
           className={cn(
-            "h-8 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "h-7 rounded-full border px-3 text-[11px] font-semibold transition-colors sm:h-8 sm:text-xs",
             !typeFilter ? "border-border bg-surface-active text-foreground" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >
@@ -648,7 +667,7 @@ export default function Exercises() {
           type="button"
           onClick={() => setTypeFilter(typeFilter === "Compound" ? null : "Compound")}
           className={cn(
-            "flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "flex h-7 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold transition-colors sm:h-8 sm:text-xs",
             typeFilter === "Compound" ? "border-volt bg-volt/15 text-volt" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >
@@ -659,7 +678,7 @@ export default function Exercises() {
           type="button"
           onClick={() => setTypeFilter(typeFilter === "Isolation" ? null : "Isolation")}
           className={cn(
-            "flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors",
+            "flex h-7 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold transition-colors sm:h-8 sm:text-xs",
             typeFilter === "Isolation" ? "border-cyan-focus bg-cyan-focus/15 text-cyan-focus" : "border-border text-muted-foreground hover:text-foreground",
           )}
         >
@@ -671,7 +690,7 @@ export default function Exercises() {
       {exercises.isLoading && (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <div key={n} className="h-[64px] animate-pulse rounded-xl bg-surface" />
+            <div key={n} className="h-[68px] animate-pulse rounded-xl bg-surface" />
           ))}
         </div>
       )}
@@ -684,7 +703,8 @@ export default function Exercises() {
         </p>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="exercise-list">
+      {/* Single column on mobile, 2 on sm, 3 on lg */}
+      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2 sm:gap-2 lg:grid-cols-3" data-testid="exercise-list">
         {filtered.map((e) => (
           <ExerciseCard
             key={e.id}
