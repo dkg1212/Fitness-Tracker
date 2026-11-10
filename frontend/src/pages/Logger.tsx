@@ -17,14 +17,14 @@ function NoActive() {
       <PageHeader eyebrow="Train" title="Ready when you are" testid="logger-empty-title" />
 
       {/* Empty state card */}
-      <div className="rounded-2xl border border-border bg-surface-card/70 p-6 animate-fade-up">
-        <Dumbbell className="size-9 text-volt" />
-        <p className="mt-3 text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-surface-card/70 p-5 sm:p-6 animate-fade-up">
+        <Dumbbell className="size-8 text-volt sm:size-9" />
+        <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">
           No session in progress. Start from a template or log freestyle.
         </p>
         <StartWorkoutButton
           body={{ template_id: null, name: null }}
-          className="mt-5 h-12 px-6 text-sm font-bold sm:w-auto"
+          className="mt-4 h-11 w-full px-5 text-sm font-bold sm:mt-5 sm:h-12 sm:w-auto sm:px-6"
           testid="logger-start-empty-button"
         >
           <Plus className="size-4" /> Start empty workout
@@ -33,11 +33,12 @@ function NoActive() {
 
       {/* Template cards */}
       {!templates.isError && (templates.data?.length ?? 0) > 0 && (
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Start from template
           </h3>
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Single column on mobile, two columns on sm+ */}
+          <div className="flex flex-col gap-2.5 sm:grid sm:grid-cols-2 sm:gap-3">
             {templates.data?.map((t) => (
               <StartWorkoutButton
                 key={t.id}
@@ -46,15 +47,30 @@ function NoActive() {
                 testid={`logger-start-template-${t.id}`}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block font-heading text-lg font-bold text-foreground">
+                  <span className="block font-heading text-base font-bold text-foreground sm:text-lg">
                     {t.name}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {t.exercises.length} exercises
+                    {t.exercises.length} exercise{t.exercises.length !== 1 ? "s" : ""}
                   </span>
                 </span>
-                <Play className="size-5 shrink-0 text-volt" />
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="hidden text-xs font-semibold text-volt sm:inline">Start</span>
+                  <Play className="size-5 text-volt" />
+                </span>
               </StartWorkoutButton>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loading skeleton for templates */}
+      {templates.isLoading && (
+        <div className="mt-5 sm:mt-6">
+          <div className="mb-3 h-3 w-32 animate-pulse rounded bg-surface-active" />
+          <div className="flex flex-col gap-2.5">
+            {[1, 2].map((n) => (
+              <div key={n} className="h-16 animate-pulse rounded-2xl bg-surface-card" />
             ))}
           </div>
         </div>

@@ -55,6 +55,24 @@ async def get_today(user: dict = Depends(current_user)):
     split = await load_split(user["id"], templates)
     tid = split.days[weekday].template_id
     active = await db.workouts.find_one({"user_id": user["id"], "status": "active"}, {"_id": 0, "id": 1})
+
+    # Check if today's planned template was already completed today
+    completed_today = False
+    completed_workout_id = None
+    if tid:
+        finished = await db.workouts.find_one(
+            {
+                "user_id": user["id"],
+                "status": "completed",
+                "template_id": tid,
+                "date": today,
+            },
+            {"_id": 0, "id": 1},
+        )
+        if finished:
+            completed_today = True
+            completed_workout_id = finished["id"]
+
     return TodayInfo(
         date=today,
         weekday=weekday,
@@ -62,4 +80,6 @@ async def get_today(user: dict = Depends(current_user)):
         is_rest=tid is None,
         active_workout_id=active["id"] if active else None,
         split=split,
+        completed_today=completed_today,
+        completed_workout_id=completed_workout_id,
     )

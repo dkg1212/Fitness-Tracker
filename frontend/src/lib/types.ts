@@ -75,6 +75,10 @@ export interface TodayInfo {
   is_rest: boolean;
   active_workout_id: string | null;
   split: Split;
+  /** True if today's planned template has already been completed today */
+  completed_today: boolean;
+  /** Workout ID of the session that completed today's split day (if completed_today is true) */
+  completed_workout_id: string | null;
 }
 
 // models/workout.py

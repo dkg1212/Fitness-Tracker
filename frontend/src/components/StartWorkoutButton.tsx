@@ -23,7 +23,8 @@ export default function StartWorkoutButton({ body, children, className, variant,
 
   const triggerCls = isCard
     ? cn(
-        "flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-surface-card/80 px-5 py-4 text-left",
+        "flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-surface-card/80 px-4 py-3.5 text-left",
+        "sm:px-5 sm:py-4",
         "transition-[border-color,transform,background-color] duration-150",
         "hover:-translate-y-0.5 hover:border-volt/60 hover:bg-surface-card",
         "active:scale-[0.98] active:translate-y-0",

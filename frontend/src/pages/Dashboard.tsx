@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, BookOpen, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight, Dumbbell, TrendingUp } from "lucide-react";
+import { BedDouble, BookOpen, CheckCircle2, Flame, Play, Plus, Trophy, Activity, CalendarCheck, ChevronRight, Dumbbell, TrendingUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
 import StartWorkoutButton from "@/components/StartWorkoutButton";
@@ -172,6 +172,24 @@ export default function Dashboard() {
               >
                 <Play className="size-4" /> Resume {active.data?.name}
               </Link>
+            ) : t?.completed_today ? (
+              /* Today's planned session is already done — show a "Done" badge + link to that session */
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className="flex items-center gap-2 rounded-xl border border-volt/40 bg-volt/10 px-5 py-3 text-base font-bold text-volt"
+                  data-testid="dashboard-completed-today-badge"
+                >
+                  <CheckCircle2 className="size-5" />
+                  Completed today
+                </span>
+                <Link
+                  to={`/workout/${t.completed_workout_id}`}
+                  className={cn(buttonVariants({ variant: "outline" }), "h-12 px-5 active:scale-[0.97]")}
+                  data-testid="dashboard-view-completed-button"
+                >
+                  View session
+                </Link>
+              </div>
             ) : (
               <>
                 {t?.template && (
@@ -241,6 +259,7 @@ export default function Dashboard() {
           ).map((d) => {
             const isToday = t?.weekday === d.weekday;
             const isRest = !d.template_id;
+            const isDoneToday = isToday && t?.completed_today;
             return (
               <Link
                 to="/split"
@@ -248,7 +267,9 @@ export default function Dashboard() {
                 data-testid={`week-strip-day-${d.weekday}`}
                 className={cn(
                   "rounded-xl border p-2 text-center transition-colors sm:p-3",
-                  isToday
+                  isDoneToday
+                    ? "border-volt/60 bg-volt/15"
+                    : isToday
                     ? "border-volt bg-volt/10"
                     : isRest
                     ? "border-border bg-surface/40"
@@ -263,14 +284,18 @@ export default function Dashboard() {
                 >
                   {WEEKDAYS_SHORT[d.weekday]}
                 </p>
-                <p
-                  className={cn(
-                    "mt-1 truncate text-[10px] font-semibold sm:text-[11px]",
-                    isRest ? "text-muted-foreground/50" : "text-foreground",
-                  )}
-                >
-                  {d.template_name ?? "—"}
-                </p>
+                {isDoneToday ? (
+                  <CheckCircle2 className="mx-auto mt-1 size-3.5 text-volt" />
+                ) : (
+                  <p
+                    className={cn(
+                      "mt-1 truncate text-[10px] font-semibold sm:text-[11px]",
+                      isRest ? "text-muted-foreground/50" : "text-foreground",
+                    )}
+                  >
+                    {d.template_name ?? "—"}
+                  </p>
+                )}
               </Link>
             );
           })}

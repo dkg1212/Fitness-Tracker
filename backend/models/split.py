@@ -25,3 +25,7 @@ class TodayInfo(BaseModel):
     is_rest: bool
     active_workout_id: str | None
     split: Split
+    # True if today's planned template has already been completed today
+    completed_today: bool = False
+    # The workout ID of today's completed session (if completed_today is True)
+    completed_workout_id: str | None = None
