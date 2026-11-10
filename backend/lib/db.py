@@ -30,6 +30,9 @@ INDEXES = {
         IndexModel([("user_id", ASCENDING), ("created_at", ASCENDING)], name="user_created"),
     ],
     "splits": [IndexModel([("user_id", ASCENDING)], name="user_id", unique=True)],
+    "split_history": [
+        IndexModel([("user_id", ASCENDING), ("effective_from", ASCENDING)], name="user_from"),
+    ],
     "workouts": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         # Enforce the one-active-workout rule even when two requests arrive together.

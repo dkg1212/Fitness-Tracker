@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
+from models.history import SplitHistoryDay, SplitHistoryRecord
 from models.split import Split, SplitDay, SplitIn, TodayInfo
 from models.template import Template
 
@@ -40,6 +41,44 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
     for d in body.days:
         if d.template_id and d.template_id not in templates:
             raise HTTPException(status_code=422, detail=f"Unknown template {d.template_id}")
+
+    # ── Save a split-history snapshot before overwriting ─────────────────────
+    existing = await db.splits.find_one({"user_id": user["id"]}, {"_id": 0})
+    today = today_iso()
+    if existing:
+        # Only snapshot if the days config actually changed
+        existing_days = sorted(existing.get("days", []), key=lambda x: x["weekday"])
+        new_days = sorted([{"weekday": d.weekday, "template_id": d.template_id} for d in body.days], key=lambda x: x["weekday"])
+        config_changed = existing_days != new_days
+
+        if config_changed:
+            # Close out any open snapshot for this user
+            await db.split_history.update_many(
+                {"user_id": user["id"], "effective_to": None},
+                {"$set": {"effective_to": today}},
+            )
+            # Resolve template names for history
+            existing_split_days = []
+            for ed in sorted(existing.get("days", []), key=lambda x: x["weekday"]):
+                tid = ed.get("template_id")
+                t = templates.get(tid) if tid else None
+                existing_split_days.append(
+                    SplitHistoryDay(
+                        weekday=ed["weekday"],
+                        template_id=tid,
+                        template_name=t.name if t else None,
+                    )
+                )
+            snapshot = SplitHistoryRecord(
+                effective_from=today,
+                effective_to=None,
+                split_name=existing.get("name", "My Split"),
+                days=existing_split_days,
+            )
+            await db.split_history.insert_one(
+                {**snapshot.model_dump(), "user_id": user["id"]}
+            )
+
     days = [{"weekday": d.weekday, "template_id": d.template_id} for d in sorted(body.days, key=lambda x: x.weekday)]
     await db.splits.update_one(
         {"user_id": user["id"]}, {"$set": {"name": body.name, "days": days, "user_id": user["id"]}}, upsert=True

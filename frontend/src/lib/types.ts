@@ -229,3 +229,58 @@ export interface ExerciseProgress { exercise_id: string; exercise_name: string; 
 // models/analytics.py — sub-muscle breakdown
 export interface SubMuscleWorkload { muscle: string; sets: number; volume: number }
 export interface SubMuscleBreakdown { primary: SubMuscleWorkload[]; secondary: SubMuscleWorkload[] }
+
+// models/history.py — consistency & calendar
+export interface ConsistencyStats {
+  total_sessions: number;
+  total_workout_days: number;
+  this_week_sessions: number;
+  this_month_sessions: number;
+  this_year_sessions: number;
+  current_streak: number;
+  longest_streak: number;
+  weekly_consistency_pct: number;
+  monthly_consistency_pct: number;
+  all_time_consistency_pct: number;
+  scheduled_days_total: number;
+  completed_scheduled_days: number;
+  missed_scheduled_days: number;
+}
+
+export interface CalendarWorkoutSummary {
+  id: string;
+  name: string;
+  volume: number;
+  completed_sets: number;
+  duration_min: number | null;
+}
+
+export type CalendarDayStatus = "done" | "missed" | "rest" | "today" | "future" | "none";
+
+export interface CalendarDay {
+  date: string;
+  status: CalendarDayStatus;
+  is_scheduled: boolean;
+  is_rest: boolean;
+  scheduled_template_name: string | null;
+  workouts: CalendarWorkoutSummary[];
+}
+
+export interface CalendarResponse {
+  year: number;
+  month: number;
+  days: CalendarDay[];
+}
+
+export interface SplitHistoryDay {
+  weekday: number;
+  template_id: string | null;
+  template_name: string | null;
+}
+
+export interface SplitHistoryRecord {
+  effective_from: string;
+  effective_to: string | null;
+  split_name: string;
+  days: SplitHistoryDay[];
+}

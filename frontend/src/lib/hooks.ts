@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError, apiGet, apiPost } from "./api";
-import type { Exercise, Template, User, Workout, WorkoutStart } from "./types";
+import type { CalendarResponse, ConsistencyStats, Exercise, SplitHistoryRecord, Template, User, Workout, WorkoutStart } from "./types";
 
 export const useMe = () =>
   useQuery({ queryKey: ["me"], queryFn: () => apiGet<User>("/auth/me"), retry: false, staleTime: 5 * 60_000 });
@@ -15,6 +15,27 @@ export const useTemplates = () =>
 
 export const useActiveWorkout = () =>
   useQuery({ queryKey: ["workout", "active"], queryFn: () => apiGet<Workout | null>("/workouts/active") });
+
+export const useConsistencyStats = () =>
+  useQuery({
+    queryKey: ["history", "stats"],
+    queryFn: () => apiGet<ConsistencyStats>("/history/stats"),
+    staleTime: 2 * 60_000,
+  });
+
+export const useCalendar = (year: number, month: number) =>
+  useQuery({
+    queryKey: ["history", "calendar", year, month],
+    queryFn: () => apiGet<CalendarResponse>(`/history/calendar?year=${year}&month=${month}`),
+    staleTime: 2 * 60_000,
+  });
+
+export const useSplitHistory = () =>
+  useQuery({
+    queryKey: ["history", "splits"],
+    queryFn: () => apiGet<SplitHistoryRecord[]>("/history/splits"),
+    staleTime: 5 * 60_000,
+  });
 
 /** Mark the onboarding tour as completed. Updates the "me" cache immediately. */
 export function useCompleteOnboarding() {

@@ -9,7 +9,7 @@ from lib.auth import validate_auth_config
 from lib.db import client, ensure_indexes
 from lib.exercise_meta import EXERCISE_META
 from lib.db import db
-from routers import analytics, auth, exercises, splits, templates, workouts
+from routers import analytics, auth, exercises, history, splits, templates, workouts
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     client.close()
 
 app = FastAPI(title="IronCore Workout API", version="1.0.0", lifespan=lifespan)
-for module in (auth, exercises, templates, splits, workouts, analytics):
+for module in (auth, exercises, templates, splits, history, workouts, analytics):
     app.include_router(module.router, prefix="/api")
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
