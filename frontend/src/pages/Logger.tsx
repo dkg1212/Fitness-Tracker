@@ -15,24 +15,45 @@ function NoActive() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader eyebrow="Train" title="Ready when you are" testid="logger-empty-title" />
+
+      {/* Empty state card */}
       <div className="rounded-2xl border border-border bg-surface-card/70 p-6 animate-fade-up">
         <Dumbbell className="size-9 text-volt" />
-        <p className="mt-3 text-muted-foreground">No session in progress. Start from a template or log freestyle.</p>
-        <StartWorkoutButton body={{ template_id: null, name: null }} className="mt-5 h-14 w-full px-6 text-base font-bold sm:w-auto active:scale-[0.97]" testid="logger-start-empty-button">
+        <p className="mt-3 text-muted-foreground">
+          No session in progress. Start from a template or log freestyle.
+        </p>
+        <StartWorkoutButton
+          body={{ template_id: null, name: null }}
+          className="mt-5 h-12 px-6 text-sm font-bold sm:w-auto"
+          testid="logger-start-empty-button"
+        >
           <Plus className="size-4" /> Start empty workout
         </StartWorkoutButton>
       </div>
+
+      {/* Template cards */}
       {!templates.isError && (templates.data?.length ?? 0) > 0 && (
         <div className="mt-6">
-          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">Start from template</h3>
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Start from template
+          </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {templates.data?.map((t) => (
-              <StartWorkoutButton key={t.id} body={{ template_id: t.id, name: null }} className="flex min-h-[72px] w-full items-center justify-between rounded-xl border border-border bg-surface/70 px-4 py-4 text-left transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-volt active:scale-[0.98]" testid={`logger-start-template-${t.id}`}>
-                <span>
-                  <span className="block font-heading text-lg font-bold">{t.name}</span>
-                  <span className="text-xs text-muted-foreground">{t.exercises.length} exercises</span>
+              <StartWorkoutButton
+                key={t.id}
+                body={{ template_id: t.id, name: null }}
+                variant="card"
+                testid={`logger-start-template-${t.id}`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block font-heading text-lg font-bold text-foreground">
+                    {t.name}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t.exercises.length} exercises
+                  </span>
                 </span>
-                <Play className="size-5 text-volt" />
+                <Play className="size-5 shrink-0 text-volt" />
               </StartWorkoutButton>
             ))}
           </div>
