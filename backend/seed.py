@@ -28,6 +28,7 @@ EXERCISES: list[tuple[str, str, str]] = [
     ("Cable Crossover", "Chest", "Cable"), ("Pec Deck", "Chest", "Machine"),
     ("Push-Up", "Chest", "Bodyweight"), ("Chest Dip", "Chest", "Bodyweight"),
     ("Machine Chest Press", "Chest", "Machine"),
+    ("Smith Machine Bench Press", "Chest", "Smith Machine"),
     # Back
     ("Deadlift", "Back", "Barbell"), ("Barbell Row", "Back", "Barbell"), ("Pendlay Row", "Back", "Barbell"),
     ("Pull-Up", "Back", "Bodyweight"), ("Chin-Up", "Back", "Bodyweight"), ("Lat Pulldown", "Back", "Cable"),
@@ -40,11 +41,13 @@ EXERCISES: list[tuple[str, str, str]] = [
     ("Cable Lateral Raise", "Shoulders", "Cable"), ("Rear Delt Fly", "Shoulders", "Dumbbell"),
     ("Face Pull", "Shoulders", "Cable"), ("Upright Row", "Shoulders", "Barbell"),
     ("Machine Shoulder Press", "Shoulders", "Machine"),
+    ("Smith Machine Overhead Press", "Shoulders", "Smith Machine"),
     # Quads
-    ("Back Squat", "Quads", "Barbell"), ("Front Squat", "Quads", "Barbell"), ("Leg Press", "Quads", "Machine"),
-    ("Hack Squat", "Quads", "Machine"), ("Bulgarian Split Squat", "Quads", "Dumbbell"),
+    ("Back Squat", "Quads", "Barbell"), ("Front Squat", "Quads", "Barbell"), ("Leg Press", "Quads", "Plate-Loaded Machine"),
+    ("Hack Squat", "Quads", "Plate-Loaded Machine"), ("Bulgarian Split Squat", "Quads", "Dumbbell"),
     ("Leg Extension", "Quads", "Machine"), ("Walking Lunge", "Quads", "Dumbbell"),
     ("Goblet Squat", "Quads", "Kettlebell"),
+    ("Smith Machine Squat", "Quads", "Smith Machine"),
     # Hamstrings
     ("Romanian Deadlift", "Hamstrings", "Barbell"), ("Lying Leg Curl", "Hamstrings", "Machine"),
     ("Seated Leg Curl", "Hamstrings", "Machine"), ("Good Morning", "Hamstrings", "Barbell"),
@@ -66,6 +69,14 @@ EXERCISES: list[tuple[str, str, str]] = [
     ("Russian Twist", "Core", "Bodyweight"),
     # Calves
     ("Standing Calf Raise", "Calves", "Machine"), ("Seated Calf Raise", "Calves", "Machine"),
+    # Resistance Band
+    ("Resistance Band Pull-Apart", "Shoulders", "Resistance Band"),
+    ("Resistance Band Bicep Curl", "Biceps", "Resistance Band"),
+    ("Resistance Band Face Pull", "Shoulders", "Resistance Band"),
+    ("Assisted Pull-Up", "Back", "Resistance Band"),
+    # Weighted bodyweight
+    ("Weighted Pull-Up", "Back", "Bodyweight"),
+    ("Weighted Dip", "Triceps", "Bodyweight"),
 ]
 
 # name -> (sets, reps range, rest seconds)
@@ -118,7 +129,7 @@ async def seed() -> None:
     # built-in exercise library (stable ids)
     meta = {}
     for name, mg, eq in EXERCISES:
-        meta[name] = (ex_id(name), mg)
+        meta[name] = (ex_id(name), mg, eq)  # (id, muscle_group, equipment)
         ex_type, primary, secondary = EXERCISE_META.get(name, (None, [], []))
         await db.exercises.update_one(
             {"id": ex_id(name)},
@@ -175,6 +186,7 @@ async def seed() -> None:
                 step = 2.5 if base >= 30 else (1 if base > 0 else 0)
                 weight = base + step * week_idx
                 low = int(reps.split("-")[0])
+                ex_equipment = meta[n][2]  # equipment type
                 sets = []
                 if i == 0 and weight >= 40:
                     sets.append(WorkoutSet(set_type="W", weight=round(weight * 0.5 / 2.5) * 2.5, reps=8, completed=True))
@@ -183,8 +195,10 @@ async def seed() -> None:
                     rpe = rng.choice([7, 7.5, 8, 8.5, 9]) + (0.5 if k == nsets - 1 else 0)
                     rpe = min(rpe, 10)
                     sets.append(WorkoutSet(weight=float(weight), reps=r, rpe=rpe, rir=round(10 - rpe, 1), completed=True))
-                exercises.append(WorkoutExercise(exercise_id=meta[n][0], exercise_name=n, muscle_group=meta[n][1],
-                                                 rest_seconds=rest, sets=sets))
+                exercises.append(WorkoutExercise(
+                    exercise_id=meta[n][0], exercise_name=n, muscle_group=meta[n][1],
+                    equipment=ex_equipment, rest_seconds=rest, sets=sets,
+                ))
             w = Workout(
                 name=tname,
                 date=d.isoformat(),

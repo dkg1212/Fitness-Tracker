@@ -1,5 +1,5 @@
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,11 +15,23 @@ def _uid() -> str:
 class WorkoutSet(BaseModel):
     uid: str = Field(default_factory=_uid)
     set_type: SetType = "N"
-    weight: float | None = Field(default=None, ge=0, le=1000)
+    # `weight` is the canonical load used for volume / e1RM calculations.
+    # For barbells it is total barbell load; for dumbbells it is per-dumbbell weight;
+    # for cable/machine it is stack weight; for bodyweight it is bodyweight (+added, −assisted).
+    # Existing records that set weight directly continue to work unchanged.
+    weight: float | None = Field(default=None, ge=0, le=5000)
     reps: int | None = Field(default=None, ge=0, le=1000)
     rpe: float | None = Field(default=None, ge=0, le=10)
     rir: float | None = Field(default=None, ge=0, le=10)
     completed: bool = False
+
+    # --- Equipment-specific raw inputs (optional, backward-compatible) ---
+    # These store exactly what the user entered before any calculation.
+    # Absent on legacy sets — consumers must handle None gracefully.
+    loading_inputs: dict[str, Any] | None = Field(default=None)
+    # Human-readable note about what `weight` represents for display.
+    # e.g. "per dumbbell", "total barbell load", "stack weight"
+    weight_note: str | None = Field(default=None, max_length=80)
 
 
 class WorkoutExercise(BaseModel):
@@ -27,6 +39,13 @@ class WorkoutExercise(BaseModel):
     exercise_id: str
     exercise_name: str
     muscle_group: str
+    # Denormalized from Exercise so the logger can render equipment-specific UI
+    # without an extra DB round-trip.  Absent on legacy records → treated as None.
+    equipment: str | None = Field(default=None)
+    # Exercise-level config — things set once for the whole exercise, not per set.
+    # e.g. bar weight for barbell, body weight for BW exercises, BW mode.
+    # Absent on legacy records → consumers handle None gracefully.
+    exercise_config: dict[str, Any] | None = Field(default=None)
     notes: str = Field(default="", max_length=2000)
     rest_seconds: int = Field(default=120, ge=0, le=900)
     effort_mode: Literal["rpe", "rir"] = "rpe"
@@ -79,6 +98,8 @@ class PRRecord(BaseModel):
     value: float
     weight: float
     reps: int
+    # Context label for display (e.g. "per dumbbell", "total barbell load")
+    weight_note: str = ""
 
 
 class FinishResult(BaseModel):

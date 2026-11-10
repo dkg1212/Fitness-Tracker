@@ -6,7 +6,17 @@ from pydantic import BaseModel, Field
 MuscleGroup = Literal[
     "Chest", "Back", "Shoulders", "Quads", "Hamstrings", "Glutes", "Biceps", "Triceps", "Core", "Calves"
 ]
-Equipment = Literal["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight", "Kettlebell"]
+Equipment = Literal[
+    "Barbell",
+    "Smith Machine",
+    "Dumbbell",
+    "Cable",
+    "Machine",          # selectorised / weight-stack machine
+    "Plate-Loaded Machine",
+    "Bodyweight",
+    "Kettlebell",
+    "Resistance Band",
+]
 ExerciseType = Literal["Compound", "Isolation"]
 
 

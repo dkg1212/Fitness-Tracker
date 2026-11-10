@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
-from lib.training import completed_set_count, duration_min, epley, exercise_bests, summarize, working_sets, workout_volume
+from lib.training import completed_set_count, duration_min, epley, epley_for_equipment, exercise_bests, summarize, weight_note_for, working_sets, workout_volume
 from models.common import utcnow
 from models.workout import (
     FinishResult,
@@ -83,12 +83,17 @@ async def start_workout(body: WorkoutStart, user: dict = Depends(current_user)):
         if not tdoc:
             raise HTTPException(status_code=404, detail="Template not found")
         name = (body.name or "").strip() or tdoc["name"]
+        # Build a lookup of exercise_id -> equipment from the library
+        exercise_ids = [te["exercise_id"] for te in tdoc.get("exercises", [])]
+        ex_docs = await db.exercises.find({"id": {"$in": exercise_ids}}, {"_id": 0, "id": 1, "equipment": 1}).to_list(500)
+        equip_map = {d["id"]: d.get("equipment") for d in ex_docs}
         for te in tdoc.get("exercises", []):
             exercises.append(
                 WorkoutExercise(
                     exercise_id=te["exercise_id"],
                     exercise_name=te["exercise_name"],
                     muscle_group=te["muscle_group"],
+                    equipment=equip_map.get(te["exercise_id"]),
                     rest_seconds=te.get("rest_seconds", 120),
                     sets=[WorkoutSet() for _ in range(te.get("target_sets", 3))],
                 )
@@ -140,15 +145,30 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
         if not sets or ex.exercise_id not in prior:
             continue
         p = prior[ex.exercise_id]
+        equipment = ex.equipment
         top = max(sets, key=lambda s: ((s.weight or 0), s.reps or 0))
         if (top.weight or 0) > p["best_weight"]:
-            new_prs.append(PRRecord(exercise_id=ex.exercise_id, exercise_name=ex.exercise_name, kind="weight",
-                                    value=top.weight or 0, weight=top.weight or 0, reps=top.reps or 0))
-        best_e1 = max(sets, key=lambda s: epley(s.weight, s.reps))
-        e1 = epley(best_e1.weight, best_e1.reps)
+            new_prs.append(PRRecord(
+                exercise_id=ex.exercise_id,
+                exercise_name=ex.exercise_name,
+                kind="weight",
+                value=top.weight or 0,
+                weight=top.weight or 0,
+                reps=top.reps or 0,
+                weight_note=top.weight_note or weight_note_for(equipment),
+            ))
+        best_e1 = max(sets, key=lambda s: epley_for_equipment(s.weight, s.reps, equipment))
+        e1 = epley_for_equipment(best_e1.weight, best_e1.reps, equipment)
         if e1 > p["best_e1rm"]:
-            new_prs.append(PRRecord(exercise_id=ex.exercise_id, exercise_name=ex.exercise_name, kind="e1rm",
-                                    value=e1, weight=best_e1.weight or 0, reps=best_e1.reps or 0))
+            new_prs.append(PRRecord(
+                exercise_id=ex.exercise_id,
+                exercise_name=ex.exercise_name,
+                kind="e1rm",
+                value=e1,
+                weight=best_e1.weight or 0,
+                reps=best_e1.reps or 0,
+                weight_note=best_e1.weight_note or weight_note_for(equipment),
+            ))
 
     return FinishResult(
         workout=done,

@@ -346,8 +346,17 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
                   {result.new_prs.map((pr) => (
                     <div key={`${pr.exercise_id}-${pr.kind}`} className="flex items-center justify-between rounded-md border border-amber-warn/30 bg-amber-warn/10 px-3 py-2 text-sm">
                       <span className="font-semibold">{pr.exercise_name}</span>
-                      <span className="font-mono">
-                        {pr.kind === "weight" ? `${fmtKg(pr.weight)} kg × ${pr.reps}` : `e1RM ${fmtKg(pr.value)} kg`}
+                      <span className="font-mono text-right">
+                        {pr.kind === "weight" ? (
+                          <>
+                            {fmtKg(pr.weight)} kg × {pr.reps}
+                            {pr.weight_note && (
+                              <span className="ml-1 text-[10px] text-amber-warn/70">({pr.weight_note})</span>
+                            )}
+                          </>
+                        ) : (
+                          `e1RM ${fmtKg(pr.value)} kg`
+                        )}
                       </span>
                     </div>
                   ))}

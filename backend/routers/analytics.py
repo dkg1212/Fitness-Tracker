@@ -7,7 +7,7 @@ from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
 from lib.exercise_meta import EXERCISE_META
-from lib.training import epley, exercise_bests, set_volume, working_sets, workout_volume
+from lib.training import epley, epley_for_equipment, exercise_bests, set_volume, weight_note_for, working_sets, workout_volume
 from models.analytics import (
     AnalyticsSummary,
     ExerciseProgress,
@@ -102,12 +102,13 @@ async def exercise_progress(exercise_id: str, user: dict = Depends(current_user)
         if not sets:
             continue
         name = next(ex.exercise_name for ex in w.exercises if ex.exercise_id == exercise_id)
-        best = max(sets, key=lambda s: epley(s.weight, s.reps))
+        equip = next((ex.equipment for ex in w.exercises if ex.exercise_id == exercise_id), None)
+        best = max(sets, key=lambda s: epley_for_equipment(s.weight, s.reps, equip))
         points.append(
             ExerciseProgressPoint(
                 date=w.date,
                 top_weight=max((s.weight or 0) for s in sets),
-                e1rm=epley(best.weight, best.reps),
+                e1rm=epley_for_equipment(best.weight, best.reps, equip),
                 volume=round(sum(set_volume(s) for s in sets), 1),
                 best_set=f"{_fmt_num(best.weight or 0)} × {best.reps}",
             )

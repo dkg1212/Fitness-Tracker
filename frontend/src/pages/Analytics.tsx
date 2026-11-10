@@ -538,7 +538,10 @@ export default function Analytics() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {fmtKg(p.best_weight)} × {p.best_weight_reps}
+                        <span className="tabular-nums">{fmtKg(p.best_weight)} × {p.best_weight_reps}</span>
+                        {p.weight_note && (
+                          <span className="ml-1 text-[10px] text-muted-foreground">({p.weight_note})</span>
+                        )}
                       </TableCell>
                       <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">
                         {fmtDate(p.best_weight_date)}

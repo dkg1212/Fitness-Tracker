@@ -194,7 +194,7 @@ export default function Profile() {
                 required
                 value={sex}
                 onChange={(e) => setSex(e.target.value as Sex)}
-                className="mt-1.5 h-12 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors hover:border-volt focus:border-volt"
+                className="mt-1.5 h-12 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors hover:border-volt focus:border-volt"
               >
                 <option value="" disabled>
                   Select sex

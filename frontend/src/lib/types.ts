@@ -2,12 +2,24 @@
 
 export type MuscleGroup =
   | "Chest" | "Back" | "Shoulders" | "Quads" | "Hamstrings" | "Glutes" | "Biceps" | "Triceps" | "Core" | "Calves";
-export type Equipment = "Barbell" | "Dumbbell" | "Cable" | "Machine" | "Bodyweight" | "Kettlebell";
+export type Equipment =
+  | "Barbell"
+  | "Smith Machine"
+  | "Dumbbell"
+  | "Cable"
+  | "Machine"
+  | "Plate-Loaded Machine"
+  | "Bodyweight"
+  | "Kettlebell"
+  | "Resistance Band";
 
 export const MUSCLE_GROUPS: MuscleGroup[] = [
   "Chest", "Back", "Shoulders", "Quads", "Hamstrings", "Glutes", "Biceps", "Triceps", "Core", "Calves",
 ];
-export const EQUIPMENT: Equipment[] = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight", "Kettlebell"];
+export const EQUIPMENT: Equipment[] = [
+  "Barbell", "Smith Machine", "Dumbbell", "Cable", "Machine",
+  "Plate-Loaded Machine", "Bodyweight", "Kettlebell", "Resistance Band",
+];
 
 // models/auth.py
 export interface LoginRequest { email: string; password: string }
@@ -68,20 +80,58 @@ export interface TodayInfo {
 // models/workout.py
 export type SetType = "W" | "N" | "D" | "F";
 export type EffortMode = "rpe" | "rir";
+
+/** Raw equipment-specific inputs stored alongside the canonical weight. */
+export interface LoadingInputs {
+  // Barbell / Smith Machine / Plate-Loaded Machine
+  bar_weight?: number | null;       // kg — bar or machine starting resistance
+  plates_per_side?: number | null;  // kg per side (plates only)
+  total_plates?: number | null;     // kg total plates (alternative to per-side)
+  bar_known?: boolean;              // false → bar resistance unknown (Smith / Plate-Loaded)
+  // Dumbbell / Kettlebell
+  per_dumbbell?: number | null;
+  // Cable / Machine
+  stack_weight?: number | null;
+  // Bodyweight
+  bodyweight?: number | null;
+  added_weight?: number | null;
+  assistance_weight?: number | null;
+  bw_mode?: "normal" | "weighted" | "assisted";
+  // Resistance Band
+  band_resistance?: number | null;    // numeric if user entered one
+  band_level?: string | null;         // text label if numeric not applicable
+}
+
 export interface WorkoutSet {
   uid: string;
   set_type: SetType;
-  weight: number | null;
+  weight: number | null;       // canonical load for volume / e1RM
   reps: number | null;
   rpe: number | null;
   rir: number | null;
   completed: boolean;
+  loading_inputs?: LoadingInputs | null;
+  weight_note?: string | null; // "per dumbbell", "total barbell load", etc.
 }
+/** Exercise-level config — set once for the whole exercise, not per set.
+ *  Stored on WorkoutExercise. Per-set loading_inputs only holds the variable part.
+ */
+export interface ExerciseConfig {
+  // Barbell / Smith Machine / Plate-Loaded Machine
+  bar_weight?: number | null;   // kg — the constant bar / starting resistance
+  bar_known?: boolean;          // false → bar resistance unknown
+  // Bodyweight
+  bodyweight?: number | null;
+  bw_mode?: "normal" | "weighted" | "assisted";
+}
+
 export interface WorkoutExercise {
   uid: string;
   exercise_id: string;
   exercise_name: string;
   muscle_group: string;
+  equipment: Equipment | null;
+  exercise_config?: ExerciseConfig | null;  // exercise-level config (bar weight, BW, etc.)
   notes: string;
   rest_seconds: number;
   effort_mode: EffortMode;
@@ -121,6 +171,7 @@ export interface PRRecord {
   value: number;
   weight: number;
   reps: number;
+  weight_note: string;
 }
 export interface FinishResult {
   workout: Workout;
@@ -143,6 +194,8 @@ export interface PersonalRecord {
   best_weight_date: string;
   best_e1rm: number;
   best_e1rm_date: string;
+  equipment?: Equipment | null;
+  weight_note?: string;
 }
 export interface AnalyticsSummary {
   total_workouts: number;

@@ -22,6 +22,8 @@ class PersonalRecord(BaseModel):
     best_weight_date: str
     best_e1rm: float
     best_e1rm_date: str
+    equipment: str | None = None
+    weight_note: str = ""
 
 
 class AnalyticsSummary(BaseModel):
