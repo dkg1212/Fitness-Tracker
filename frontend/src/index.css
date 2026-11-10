@@ -172,55 +172,185 @@
   html {
     scroll-behavior: smooth;
   }
-  /* Clerk auth widget dark theme overrides */
-  .cl-rootBox,
-  .cl-card,
-  .cl-signIn-root,
-  .cl-signUp-root {
+  /* ── Clerk auth widget — comprehensive dark theme ───────────────────────── */
+
+  /* Force dark color-scheme on the whole Clerk container */
+  .clerk-wrapper,
+  .clerk-wrapper * {
+    color-scheme: dark;
+  }
+
+  /* Root / card wrappers */
+  .clerk-wrapper .cl-rootBox { width: 100% !important; }
+
+  /* Clerk's outer card box — match our dark card style */
+  .clerk-wrapper .cl-cardBox,
+  .clerk-card-box {
+    background: #0E131A !important;
+    border: 1px solid #1E293B !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6) !important;
+    overflow: hidden !important;
+  }
+
+  /* Inner card — transparent */
+  .clerk-wrapper .cl-card,
+  .clerk-card {
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
+    padding: 1.75rem !important;
   }
-  .cl-headerTitle {
-    color: var(--foreground) !important;
-    font-family: var(--font-heading) !important;
+
+  /* Header — keep Clerk's title but style it */
+  .clerk-wrapper .cl-headerTitle,
+  .clerk-header-title {
+    color: #F8FAFC !important;
+    font-family: 'Outfit Variable', sans-serif !important;
+    font-weight: 800 !important;
   }
-  .cl-headerSubtitle,
-  .cl-footerActionText {
-    color: var(--muted-foreground) !important;
+  .clerk-wrapper .cl-headerSubtitle,
+  .clerk-header-subtitle {
+    color: #94A3B8 !important;
   }
-  .cl-formButtonPrimary {
-    background-color: var(--volt) !important;
-    color: var(--volt-ink) !important;
+
+  /* ── Inputs ──────────────────────────────────────────────────────────────── */
+  .clerk-wrapper input,
+  .clerk-wrapper .cl-formFieldInput,
+  .clerk-input {
+    background-color: #0A0D12 !important;
+    background: #0A0D12 !important;
+    border: 1px solid #1E293B !important;
+    border-radius: 0.55rem !important;
+    color: #F8FAFC !important;
+    font-size: 15px !important;
+    height: 44px !important;
+    color-scheme: dark !important;
+  }
+  .clerk-wrapper input:focus,
+  .clerk-wrapper .cl-formFieldInput:focus,
+  .clerk-input:focus {
+    border-color: #22C55E !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2) !important;
+    outline: none !important;
+  }
+  .clerk-wrapper input::placeholder { color: #475569 !important; }
+
+  /* Labels */
+  .clerk-wrapper .cl-formFieldLabel,
+  .clerk-label {
+    color: #94A3B8 !important;
+    font-size: 13px !important;
+  }
+
+  /* "Forgot password?" link */
+  .clerk-wrapper .cl-formFieldAction,
+  .clerk-field-action {
+    color: #22C55E !important;
+    font-size: 13px !important;
+  }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+  /* Primary (Continue / Sign in) */
+  .clerk-wrapper .cl-formButtonPrimary,
+  .clerk-btn-primary {
+    background: #22C55E !important;
+    background-color: #22C55E !important;
+    color: #052E16 !important;
     font-weight: 700 !important;
     height: 44px !important;
+    border-radius: 0.55rem !important;
+    font-size: 15px !important;
+    border: none !important;
+    box-shadow: 0 1px 12px rgba(34, 197, 94, 0.3) !important;
   }
-  .cl-formButtonPrimary:hover {
-    opacity: 0.9 !important;
+  .clerk-wrapper .cl-formButtonPrimary:hover,
+  .clerk-btn-primary:hover {
+    background: #16A34A !important;
+    background-color: #16A34A !important;
   }
-  .cl-formFieldInput {
-    background: var(--background) !important;
-    border-color: var(--input) !important;
-    color: var(--foreground) !important;
+
+  /* Social buttons (Google, Apple, GitHub) */
+  .clerk-wrapper .cl-socialButtonsBlockButton,
+  .clerk-social-btn {
+    background: #121820 !important;
+    background-color: #121820 !important;
+    border: 1px solid #1E293B !important;
+    color: #F8FAFC !important;
     height: 44px !important;
+    border-radius: 0.55rem !important;
   }
-  .cl-formFieldInput:focus {
-    border-color: var(--volt) !important;
-    box-shadow: 0 0 0 2px rgba(34,197,94,0.2) !important;
+  .clerk-wrapper .cl-socialButtonsBlockButton:hover,
+  .clerk-social-btn:hover {
+    background: #1E293B !important;
+    background-color: #1E293B !important;
+    border-color: #334155 !important;
   }
-  .cl-dividerLine {
-    background: var(--border) !important;
+  .clerk-wrapper .cl-socialButtonsBlockButtonText,
+  .clerk-social-btn-text {
+    color: #F8FAFC !important;
   }
-  .cl-dividerText {
-    color: var(--muted-foreground) !important;
+  /* Social button icons */
+  .clerk-wrapper .cl-socialButtonsBlockButton svg { opacity: 1 !important; }
+
+  /* ── Divider ─────────────────────────────────────────────────────────────── */
+  .clerk-wrapper .cl-dividerLine,
+  .clerk-divider-line {
+    background: #1E293B !important;
   }
-  .cl-socialButtonsBlockButton {
-    border-color: var(--border) !important;
-    background: var(--surface) !important;
-    color: var(--foreground) !important;
+  .clerk-wrapper .cl-dividerText,
+  .clerk-divider-text {
+    color: #475569 !important;
   }
-  .cl-footerActionLink {
-    color: var(--volt) !important;
+
+  /* ── Footer ──────────────────────────────────────────────────────────────── */
+  .clerk-wrapper .cl-footer,
+  .clerk-footer {
+    background: #0E131A !important;
+    border-top: 1px solid #1E293B !important;
+    padding: 1rem 1.75rem !important;
+  }
+  .clerk-wrapper .cl-footerActionLink,
+  .clerk-footer-link {
+    color: #22C55E !important;
+  }
+  .clerk-wrapper .cl-footerActionText,
+  .clerk-footer-text {
+    color: #64748B !important;
+  }
+
+  /* "Secured by Clerk" row — make it subtle */
+  .clerk-wrapper .cl-footer > div:last-child,
+  .clerk-wrapper [class*="cl-powered"] {
+    opacity: 0.4 !important;
+  }
+
+  /* ── Errors / alerts ─────────────────────────────────────────────────────── */
+  .clerk-wrapper .cl-formFieldErrorText,
+  .clerk-error-text {
+    color: #FF3B30 !important;
+  }
+  .clerk-wrapper .cl-alert,
+  .clerk-alert {
+    background: rgba(255, 59, 48, 0.1) !important;
+    border: 1px solid rgba(255, 59, 48, 0.25) !important;
+    border-radius: 0.5rem !important;
+    color: #F8FAFC !important;
+  }
+
+  /* "Last used" badge */
+  .clerk-wrapper [class*="badge"],
+  .clerk-wrapper .cl-badge {
+    background: #1E293B !important;
+    color: #94A3B8 !important;
+    border: 1px solid #334155 !important;
+  }
+
+  /* Any remaining white backgrounds inside the card */
+  .clerk-wrapper [class^="cl-"],
+  .clerk-wrapper [class*=" cl-"] {
+    color-scheme: dark;
   }
   /* Scrollbar styling */
   ::-webkit-scrollbar {

@@ -1,27 +1,30 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useAuth, useClerk, useUser } from "@clerk/react";
-import { CalendarDays, Dumbbell, History, Layers, LayoutDashboard, LogOut, PlayCircle, TrendingUp, UserRound, Zap } from "lucide-react";
+import {
+  CalendarDays, Dumbbell, History, Layers, LayoutDashboard,
+  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown,
+} from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { useActiveWorkout, useMe } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 const SIDE = [
-  { label: "Dashboard", to: "/", icon: LayoutDashboard, testid: "side-dashboard" },
-  { label: "Active Logger", to: "/workout/active", icon: PlayCircle, testid: "side-active-logger" },
-  { label: "Workout History", to: "/history", icon: History, testid: "side-history" },
-  { label: "Split Planner", to: "/split", icon: CalendarDays, testid: "side-split-planner" },
-  { label: "Templates", to: "/templates", icon: Layers, testid: "side-templates" },
-  { label: "Exercise Library", to: "/exercises", icon: Dumbbell, testid: "side-exercises" },
-  { label: "Progress & 1RM", to: "/analytics", icon: TrendingUp, testid: "side-analytics" },
+  { label: "Dashboard",        to: "/",               icon: LayoutDashboard, testid: "side-dashboard" },
+  { label: "Active Logger",    to: "/workout/active", icon: PlayCircle,      testid: "side-active-logger" },
+  { label: "Workout History",  to: "/history",        icon: History,         testid: "side-history" },
+  { label: "Split Planner",    to: "/split",          icon: CalendarDays,    testid: "side-split-planner" },
+  { label: "Templates",        to: "/templates",      icon: Layers,          testid: "side-templates" },
+  { label: "Exercise Library", to: "/exercises",      icon: Dumbbell,        testid: "side-exercises" },
+  { label: "Progress & 1RM",   to: "/analytics",      icon: TrendingUp,      testid: "side-analytics" },
 ];
 
 const BOTTOM = [
-  { label: "Today", to: "/", icon: LayoutDashboard, testid: "nav-today" },
-  { label: "Train", to: "/workout/active", icon: Dumbbell, testid: "nav-train" },
-  { label: "History", to: "/history", icon: History, testid: "nav-history" },
-  { label: "Plan", to: "/templates", icon: Layers, testid: "nav-plan" },
-  { label: "Stats", to: "/analytics", icon: TrendingUp, testid: "nav-analytics" },
+  { label: "Today",   to: "/",               icon: LayoutDashboard, testid: "nav-today" },
+  { label: "Train",   to: "/workout/active", icon: Dumbbell,        testid: "nav-train" },
+  { label: "History", to: "/history",        icon: History,         testid: "nav-history" },
+  { label: "Plan",    to: "/templates",      icon: Layers,          testid: "nav-plan" },
+  { label: "Stats",   to: "/analytics",      icon: TrendingUp,      testid: "nav-analytics" },
 ];
 
 function Brand() {
@@ -30,37 +33,194 @@ function Brand() {
       <span className="grid size-9 place-items-center rounded-md bg-volt text-volt-ink">
         <Zap className="size-5" strokeWidth={2.6} />
       </span>
-      <span className="font-heading text-lg font-extrabold uppercase tracking-tight">
+      <span className="font-heading text-lg font-extrabold uppercase tracking-tight text-foreground">
         Iron<span className="text-volt">Core</span>
       </span>
     </Link>
   );
 }
 
+// ─── Account dropdown ────────────────────────────────────────────────────────
+// Self-contained: wraps trigger + menu together so the click-outside
+// logic is scoped to a single container div. No racing event issues.
+
+interface AccountDropdownProps {
+  displayName: string;
+  initial: string;
+  variant: "topbar" | "mobile" | "sidebar";
+}
+
+function AccountDropdown({ displayName, initial, variant }: AccountDropdownProps) {
+  const navigate = useNavigate();
+  const { signOut } = useClerk();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+
+  // Close on route change
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  // Close on outside click and Escape — attached AFTER open becomes true
+  useEffect(() => {
+    if (!open) return;
+
+    const onOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
+    // Delay by one frame so the click that opened the menu doesn't
+    // immediately trigger the outside-click handler.
+    const timer = window.setTimeout(() => {
+      document.addEventListener("click", onOutside);
+    }, 0);
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", onOutside);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const Avatar = () => (
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-volt font-extrabold text-volt-ink",
+        variant === "sidebar" ? "size-7 text-xs" : "size-8 text-sm",
+      )}
+    >
+      {initial}
+    </span>
+  );
+
+  // ── Trigger button styles per placement ──────────────────────────────────
+  const triggerCls = cn(
+    "flex items-center gap-2.5 transition-colors",
+    variant === "sidebar" && "w-full rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-foreground",
+    variant === "mobile" && "rounded-lg px-2 py-1.5 text-sm font-semibold text-foreground hover:bg-surface-active",
+    variant === "topbar" && "rounded-xl px-3 py-2 text-left hover:bg-surface-active",
+  );
+
+  // ── Dropdown position ─────────────────────────────────────────────────────
+  const dropdownCls = cn(
+    "absolute z-[100] mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl",
+    variant === "topbar" ? "right-0 top-full" : "bottom-full mb-1 left-0",
+    variant === "mobile" && "right-0 left-auto bottom-auto top-full",
+  );
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        data-testid={`${variant}-profile-button`}
+        className={triggerCls}
+      >
+        <Avatar />
+
+        {variant === "topbar" && (
+          <>
+            <span className="leading-tight">
+              <span className="block text-sm font-semibold text-foreground">{displayName}</span>
+              <span className="block text-xs text-muted-foreground">Account menu</span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "ml-auto size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                open && "rotate-180",
+              )}
+            />
+          </>
+        )}
+
+        {variant === "sidebar" && (
+          <>
+            <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 transition-transform duration-200",
+                open && "rotate-180",
+              )}
+            />
+          </>
+        )}
+
+        {variant === "mobile" && (
+          <span className="max-w-[5rem] truncate text-foreground">{displayName}</span>
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div role="menu" aria-label="Account menu" className={dropdownCls}>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => { navigate("/profile"); setOpen(false); }}
+            data-testid="account-menu-profile"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-active active:bg-surface-active/80"
+          >
+            <UserRound className="size-4 shrink-0 text-volt" />
+            Edit profile
+          </button>
+
+          <div className="mx-3 h-px bg-border/60" />
+
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => void signOut({ redirectUrl: "/login" })}
+            data-testid="account-menu-logout"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-medium text-crimson transition-colors hover:bg-crimson/10 active:bg-crimson/20"
+          >
+            <LogOut className="size-4 shrink-0" />
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── App shell ───────────────────────────────────────────────────────────────
+
 export default function AppShell() {
   const { isLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
   const { user } = useUser();
-  const navigate = useNavigate();
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const me = useMe();
   const active = useActiveWorkout();
   const { pathname } = useLocation();
 
   if (isLoaded && !isSignedIn) return <Navigate to="/login" replace />;
   if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to="/login" replace />;
-  if (me.data && pathname !== "/profile" && (!me.data.weight_kg || !me.data.height_cm || !me.data.sex)) return <Navigate to="/profile?onboarding=1" replace />;
+  if (
+    me.data && pathname !== "/profile" &&
+    (!me.data.weight_kg || !me.data.height_cm || !me.data.sex)
+  ) return <Navigate to="/profile?onboarding=1" replace />;
 
   const onLogger = pathname.startsWith("/workout");
   const hasActive = !!active.data && !active.isError;
   const showResume = hasActive && !onLogger;
 
+  const displayName = user?.username ?? me.data?.name ?? "Athlete";
+  const initial = displayName.slice(0, 1).toUpperCase();
+
   return (
     <div className="min-h-dvh lg:pl-64">
-      {/* Desktop sidebar */}
+
+      {/* ── Desktop sidebar ───────────────────────────────────────────── */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar/95 px-4 py-6 backdrop-blur lg:flex">
         <Brand />
-        <nav className="mt-10 flex flex-1 flex-col gap-1">
+
+        <nav className="mt-10 flex flex-1 flex-col gap-0.5">
           {SIDE.map(({ label, to, icon: Icon, testid }) => {
             const isLoggerLink = to === "/workout/active";
             return (
@@ -71,13 +231,15 @@ export default function AppShell() {
                 data-testid={testid}
                 className={({ isActive }) =>
                   cn(
-                    "group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground",
-                    isActive && "bg-sidebar-accent text-foreground shadow-[inset_3px_0_0_var(--volt)]",
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+                    isActive
+                      ? "bg-sidebar-accent text-foreground shadow-[inset_3px_0_0_var(--volt)]"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-foreground",
                   )
                 }
               >
                 <span className="relative">
-                  <Icon className="size-4.5 transition-transform duration-150 group-hover:scale-110" />
+                  <Icon className="size-4 transition-transform duration-150 group-hover:scale-110" />
                   {isLoggerLink && hasActive && (
                     <span className="absolute -right-1 -top-1 size-2 rounded-full border border-sidebar bg-volt" />
                   )}
@@ -88,51 +250,49 @@ export default function AppShell() {
           })}
         </nav>
 
-        {/* Sidebar bottom: user info */}
+        {/* Sidebar account dropdown */}
         <div className="mt-4 border-t border-sidebar-border pt-4">
-          <button
-            type="button"
-            onClick={() => setProfileMenuOpen((o) => !o)}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-volt text-xs font-extrabold text-volt-ink">
-              {(user?.username ?? me.data?.name ?? "A").slice(0, 1).toUpperCase()}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-left">
-              {user?.username ?? me.data?.name ?? "Athlete"}
-            </span>
-          </button>
+          <AccountDropdown displayName={displayName} initial={initial} variant="sidebar" />
         </div>
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur-md lg:hidden">
+      {/* ── Mobile top bar ────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-md lg:hidden">
         <Brand />
-        <div className="flex items-center gap-1">
-          <NavLink to="/split" data-testid="mobile-split-link" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:text-foreground" aria-label="Split planner">
+
+        <div className="flex items-center gap-0.5">
+          <NavLink
+            to="/split"
+            data-testid="mobile-split-link"
+            className="grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-active hover:text-foreground"
+            aria-label="Split planner"
+          >
             <CalendarDays className="size-5" />
           </NavLink>
-          <NavLink to="/exercises" data-testid="mobile-exercises-link" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:text-foreground" aria-label="Exercise library">
+          <NavLink
+            to="/exercises"
+            data-testid="mobile-exercises-link"
+            className="grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-active hover:text-foreground"
+            aria-label="Exercise library"
+          >
             <Dumbbell className="size-5" />
           </NavLink>
-          <button type="button" onClick={() => setProfileMenuOpen((open) => !open)} data-testid="mobile-profile-link" className="flex max-w-28 items-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold text-foreground hover:bg-surface-active" aria-label="Account menu">
-            <UserRound className="size-4 shrink-0 text-volt" /><span className="truncate">{user?.username ?? me.data?.name ?? "Profile"}</span>
-          </button>
+          <AccountDropdown displayName={displayName} initial={initial} variant="mobile" />
         </div>
-        {profileMenuOpen && <div className="absolute right-4 top-12 z-50 w-48 rounded-lg border border-border bg-popover p-1.5 shadow-xl"><button onClick={() => navigate("/profile")} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"><UserRound className="size-4 text-volt" /> Edit profile</button><button onClick={() => void signOut({ redirectUrl: "/login" })} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-crimson hover:bg-accent"><LogOut className="size-4" /> Log out</button></div>}
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-36 pt-5 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
-        <header className="relative mb-7 hidden h-14 items-center justify-end border-b border-border lg:flex">
-          <button type="button" onClick={() => setProfileMenuOpen((open) => !open)} data-testid="topbar-profile-link" className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-active">
-            <span className="grid size-8 place-items-center rounded-full bg-volt text-sm font-extrabold text-volt-ink">{(user?.username ?? me.data?.name ?? "A").slice(0, 1).toUpperCase()}</span>
-            <span className="text-right leading-tight"><span className="block text-sm font-semibold">{user?.username ?? me.data?.name ?? "Athlete"}</span><span className="block text-xs text-muted-foreground">Account menu</span></span>
-          </button>
-          {profileMenuOpen && <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-border bg-popover p-1.5 shadow-xl"><button onClick={() => navigate("/profile")} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"><UserRound className="size-4 text-volt" /> Edit profile</button><button onClick={() => void signOut({ redirectUrl: "/login" })} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-crimson hover:bg-accent"><LogOut className="size-4" /> Log out</button></div>}
-        </header>
+      {/* ── Main content ─────────────────────────────────────────────── */}
+      <main className="mx-auto w-full max-w-6xl px-4 pb-36 pt-4 sm:px-6 lg:px-10 lg:pb-16 lg:pt-6">
+
+        {/* Desktop top-right account dropdown */}
+        <div className="mb-5 hidden items-center justify-end lg:flex">
+          <AccountDropdown displayName={displayName} initial={initial} variant="topbar" />
+        </div>
+
         <Outlet />
       </main>
 
+      {/* ── Resume bar ───────────────────────────────────────────────── */}
       {showResume && (
         <Link
           to="/workout/active"
@@ -143,14 +303,14 @@ export default function AppShell() {
             <span className="size-2.5 animate-pulse-ring rounded-full bg-volt" />
             <span>
               <span className="block text-xs uppercase tracking-wider text-muted-foreground">In progress</span>
-              <span className="block font-heading font-bold">{active.data?.name}</span>
+              <span className="block font-heading font-bold text-foreground">{active.data?.name}</span>
             </span>
           </span>
           <span className="text-sm font-semibold text-volt">Resume →</span>
         </Link>
       )}
 
-      {/* Mobile bottom nav */}
+      {/* ── Mobile bottom nav ─────────────────────────────────────────── */}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
         {BOTTOM.map(({ label, to, icon: Icon, testid }) => {
           const isTrainTab = to === "/workout/active";
@@ -162,8 +322,8 @@ export default function AppShell() {
               data-testid={testid}
               className={({ isActive }) =>
                 cn(
-                  "relative flex h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors active:scale-95",
-                  isActive && "text-volt",
+                  "relative flex h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors active:scale-95",
+                  isActive ? "text-volt" : "text-muted-foreground hover:text-foreground",
                 )
               }
             >
