@@ -3,7 +3,7 @@ import { NavLink, Navigate, Outlet, useLocation, Link, useNavigate } from "react
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import {
   CalendarDays, Dumbbell, History, Layers, LayoutDashboard,
-  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown,
+  LogOut, PlayCircle, TrendingUp, UserRound, Zap, ChevronDown, X,
 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { useActiveWorkout, useMe } from "@/lib/hooks";
@@ -40,17 +40,109 @@ function Brand() {
   );
 }
 
-// ─── Account dropdown ────────────────────────────────────────────────────────
-// Self-contained: wraps trigger + menu together so the click-outside
-// logic is scoped to a single container div. No racing event issues.
+// ─── Mobile bottom sheet account menu ────────────────────────────────────────
+// Slides up from bottom — the correct mobile pattern, needs zero position math.
 
-interface AccountDropdownProps {
+function MobileAccountSheet({
+  open,
+  onClose,
+  displayName,
+  initial,
+}: {
+  open: boolean;
+  onClose: () => void;
   displayName: string;
   initial: string;
-  variant: "topbar" | "mobile" | "sidebar";
+}) {
+  const navigate = useNavigate();
+  const { signOut } = useClerk();
+
+  if (!open) return null;
+
+  return (
+    // Full-screen overlay
+    <div
+      className="fixed inset-0 z-[999] flex flex-col justify-end"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      {/* Dimmed backdrop — tap to close */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
+
+      {/* Sheet panel */}
+      <div
+        className="relative z-10 w-full rounded-t-2xl border-t border-border bg-popover pb-[env(safe-area-inset-bottom)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle + header */}
+        <div className="flex items-center justify-between px-5 pb-3 pt-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-full bg-volt text-sm font-extrabold text-volt-ink">
+              {initial}
+            </span>
+            <div>
+              <p className="text-sm font-bold text-foreground">{displayName}</p>
+              <p className="text-xs text-muted-foreground">Signed in</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-active hover:text-foreground"
+            aria-label="Close menu"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="mx-4 mb-2 h-px bg-border/60" />
+
+        {/* Menu items — large tap targets */}
+        <div className="flex flex-col gap-1 px-3 pb-4">
+          <button
+            type="button"
+            onClick={() => { navigate("/profile"); onClose(); }}
+            data-testid="account-menu-profile"
+            className="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-base font-semibold text-foreground transition-colors active:bg-surface-active"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-volt/10 text-volt">
+              <UserRound className="size-5" />
+            </span>
+            Edit profile
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void signOut({ redirectUrl: "/login" })}
+            data-testid="account-menu-logout"
+            className="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-base font-semibold text-crimson transition-colors active:bg-crimson/10"
+          >
+            <span className="grid size-9 place-items-center rounded-xl bg-crimson/10 text-crimson">
+              <LogOut className="size-5" />
+            </span>
+            Log out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function AccountDropdown({ displayName, initial, variant }: AccountDropdownProps) {
+// ─── Desktop dropdown account menu ───────────────────────────────────────────
+// Standard absolute dropdown for desktop — no mobile involvement.
+
+function DesktopAccountDropdown({
+  displayName,
+  initial,
+  variant,
+}: {
+  displayName: string;
+  initial: string;
+  variant: "topbar" | "sidebar";
+}) {
   const navigate = useNavigate();
   const { signOut } = useClerk();
   const [open, setOpen] = useState(false);
@@ -60,73 +152,56 @@ function AccountDropdown({ displayName, initial, variant }: AccountDropdownProps
   // Close on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
-  // Close on outside click and Escape — attached AFTER open becomes true
+  // Close on outside click / Escape — delayed so the opening click doesn't
+  // immediately close the menu
   useEffect(() => {
     if (!open) return;
-
-    const onOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-
-    // Delay by one frame so the click that opened the menu doesn't
-    // immediately trigger the outside-click handler.
     const timer = window.setTimeout(() => {
-      document.addEventListener("click", onOutside);
-    }, 0);
-    document.addEventListener("keydown", onKey);
-
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("click", onOutside);
-      document.removeEventListener("keydown", onKey);
-    };
+      const handler = (e: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          setOpen(false);
+        }
+      };
+      const keyHandler = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setOpen(false);
+      };
+      document.addEventListener("click", handler);
+      document.addEventListener("keydown", keyHandler);
+      return () => {
+        document.removeEventListener("click", handler);
+        document.removeEventListener("keydown", keyHandler);
+      };
+    }, 50);
+    return () => window.clearTimeout(timer);
   }, [open]);
 
-  const Avatar = () => (
-    <span
-      className={cn(
-        "grid shrink-0 place-items-center rounded-full bg-volt font-extrabold text-volt-ink",
-        variant === "sidebar" ? "size-7 text-xs" : "size-8 text-sm",
-      )}
-    >
-      {initial}
-    </span>
-  );
-
-  // ── Trigger button styles per placement ──────────────────────────────────
-  const triggerCls = cn(
-    "flex items-center gap-2.5 transition-colors",
-    variant === "sidebar" && "w-full rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-foreground",
-    variant === "mobile" && "rounded-lg px-2 py-1.5 text-sm font-semibold text-foreground hover:bg-surface-active",
-    variant === "topbar" && "rounded-xl px-3 py-2 text-left hover:bg-surface-active",
-  );
-
-  // ── Dropdown position ─────────────────────────────────────────────────────
-  const dropdownCls = cn(
-    "absolute z-[100] mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl",
-    variant === "topbar" ? "right-0 top-full" : "bottom-full mb-1 left-0",
-    variant === "mobile" && "right-0 left-auto bottom-auto top-full",
-  );
+  const isTopbar = variant === "topbar";
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
         data-testid={`${variant}-profile-button`}
-        className={triggerCls}
+        className={cn(
+          "flex items-center gap-2.5 transition-colors",
+          isTopbar
+            ? "rounded-xl px-3 py-2 hover:bg-surface-active"
+            : "w-full rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-foreground",
+        )}
       >
-        <Avatar />
+        <span
+          className={cn(
+            "grid shrink-0 place-items-center rounded-full bg-volt font-extrabold text-volt-ink",
+            isTopbar ? "size-8 text-sm" : "size-7 text-xs",
+          )}
+        >
+          {initial}
+        </span>
 
-        {variant === "topbar" && (
+        {isTopbar ? (
           <>
             <span className="leading-tight">
               <span className="block text-sm font-semibold text-foreground">{displayName}</span>
@@ -134,14 +209,12 @@ function AccountDropdown({ displayName, initial, variant }: AccountDropdownProps
             </span>
             <ChevronDown
               className={cn(
-                "ml-auto size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                "ml-1 size-4 shrink-0 text-muted-foreground transition-transform duration-200",
                 open && "rotate-180",
               )}
             />
           </>
-        )}
-
-        {variant === "sidebar" && (
+        ) : (
           <>
             <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
             <ChevronDown
@@ -152,34 +225,33 @@ function AccountDropdown({ displayName, initial, variant }: AccountDropdownProps
             />
           </>
         )}
-
-        {variant === "mobile" && (
-          <span className="max-w-[5rem] truncate text-foreground">{displayName}</span>
-        )}
       </button>
 
-      {/* Dropdown */}
       {open && (
-        <div role="menu" aria-label="Account menu" className={dropdownCls}>
+        <div
+          role="menu"
+          className={cn(
+            "absolute z-50 w-52 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl",
+            isTopbar ? "right-0 top-full mt-1.5" : "bottom-full left-0 mb-1.5",
+          )}
+        >
           <button
             role="menuitem"
             type="button"
             onClick={() => { navigate("/profile"); setOpen(false); }}
             data-testid="account-menu-profile"
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-active active:bg-surface-active/80"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-active"
           >
             <UserRound className="size-4 shrink-0 text-volt" />
             Edit profile
           </button>
-
           <div className="mx-3 h-px bg-border/60" />
-
           <button
             role="menuitem"
             type="button"
             onClick={() => void signOut({ redirectUrl: "/login" })}
             data-testid="account-menu-logout"
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-medium text-crimson transition-colors hover:bg-crimson/10 active:bg-crimson/20"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-crimson transition-colors hover:bg-crimson/10"
           >
             <LogOut className="size-4 shrink-0" />
             Log out
@@ -198,6 +270,10 @@ export default function AppShell() {
   const me = useMe();
   const active = useActiveWorkout();
   const { pathname } = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile sheet on navigation
+  useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
 
   if (isLoaded && !isSignedIn) return <Navigate to="/login" replace />;
   if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to="/login" replace />;
@@ -219,7 +295,6 @@ export default function AppShell() {
       {/* ── Desktop sidebar ───────────────────────────────────────────── */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar/95 px-4 py-6 backdrop-blur lg:flex">
         <Brand />
-
         <nav className="mt-10 flex flex-1 flex-col gap-0.5">
           {SIDE.map(({ label, to, icon: Icon, testid }) => {
             const isLoggerLink = to === "/workout/active";
@@ -249,18 +324,15 @@ export default function AppShell() {
             );
           })}
         </nav>
-
-        {/* Sidebar account dropdown */}
         <div className="mt-4 border-t border-sidebar-border pt-4">
-          <AccountDropdown displayName={displayName} initial={initial} variant="sidebar" />
+          <DesktopAccountDropdown displayName={displayName} initial={initial} variant="sidebar" />
         </div>
       </aside>
 
       {/* ── Mobile top bar ────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-md lg:hidden">
         <Brand />
-
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <NavLink
             to="/split"
             data-testid="mobile-split-link"
@@ -277,18 +349,39 @@ export default function AppShell() {
           >
             <Dumbbell className="size-5" />
           </NavLink>
-          <AccountDropdown displayName={displayName} initial={initial} variant="mobile" />
+
+          {/* Profile button — opens bottom sheet on mobile */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            data-testid="mobile-profile-button"
+            aria-label="Account menu"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-active active:bg-surface-active"
+          >
+            <span className="grid size-8 place-items-center rounded-full bg-volt text-sm font-extrabold text-volt-ink">
+              {initial}
+            </span>
+            <span className="max-w-[80px] truncate text-sm font-semibold text-foreground">
+              {displayName}
+            </span>
+          </button>
         </div>
       </header>
 
+      {/* Mobile bottom sheet — rendered at this level, outside header */}
+      <MobileAccountSheet
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        displayName={displayName}
+        initial={initial}
+      />
+
       {/* ── Main content ─────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-6xl px-4 pb-36 pt-4 sm:px-6 lg:px-10 lg:pb-16 lg:pt-6">
-
-        {/* Desktop top-right account dropdown */}
+        {/* Desktop topbar account */}
         <div className="mb-5 hidden items-center justify-end lg:flex">
-          <AccountDropdown displayName={displayName} initial={initial} variant="topbar" />
+          <DesktopAccountDropdown displayName={displayName} initial={initial} variant="topbar" />
         </div>
-
         <Outlet />
       </main>
 
