@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pymongo import ReturnDocument
 
 from lib.auth import current_user
 from lib.dates import today_iso
@@ -64,7 +63,7 @@ def _update_fields(body: WorkoutUpdate) -> dict:
     }
     if body.date:
         fields["date"] = body.date
-    # revision is set by the caller after calling _update_fields
+    # revision is managed by the caller, not _update_fields
     return fields
 
 
@@ -90,8 +89,6 @@ async def previous_sets(exercise_ids: str = "", exclude: str | None = None, user
     query: dict = {"user_id": user["id"], "status": "completed", "exercises.exercise_id": {"$in": list(wanted)}}
     if exclude:
         query["id"] = {"$ne": exclude}
-    # Use SLIM_PROJ to avoid materialising loading_inputs for a lookup that only
-    # needs set weight/reps (RISK-11).
     async for doc in db.workouts.find(query, SLIM_PROJ).sort(_SORT).limit(200):
         w = Workout(**doc)
         for ex in w.exercises:
@@ -113,7 +110,6 @@ async def start_workout(body: WorkoutStart, user: dict = Depends(current_user)):
         if not tdoc:
             raise HTTPException(status_code=404, detail="Template not found")
         name = (body.name or "").strip() or tdoc["name"]
-        # Build a lookup of exercise_id -> equipment from the library
         exercise_ids = [te["exercise_id"] for te in tdoc.get("exercises", [])]
         ex_docs = await db.exercises.find({"id": {"$in": exercise_ids}}, {"_id": 0, "id": 1, "equipment": 1}).to_list(500)
         equip_map = {d["id"]: d.get("equipment") for d in ex_docs}
@@ -140,42 +136,84 @@ async def get_workout(id: str, user: dict = Depends(current_user)):
 
 @router.put("/{id}", response_model=Workout)
 async def update_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
-    # Optimistic concurrency (HIGH-4): if the client sends a revision, reject
-    # the update if the server's revision is newer.  This prevents a stale
-    # browser tab from overwriting data saved by a newer session.
+    """
+    Save autosave edits with optimistic concurrency protection.
+
+    If the client supplies a `revision`, the update is applied atomically only
+    when the stored revision matches.  Using a single find_one_and_update with
+    the revision in the filter guarantees that exactly one of two concurrent
+    requests with the same revision succeeds — the other will find no matching
+    document and return 409.
+
+    If `revision` is omitted (legacy clients / existing production documents
+    that have no revision field yet), the update is applied unconditionally so
+    backward compatibility is preserved.
+    """
+    fields = _update_fields(body)
+    fields["updated_at"] = utcnow()
+
     if body.revision is not None:
-        current = await db.workouts.find_one(
-            {"id": id, "user_id": user["id"]},
-            {"_id": 0, "revision": 1},
+        # Atomic conditional update: match id + user + exact revision.
+        # Uses update_one (not find_one_and_update) to avoid a mongomock bug
+        # where find_one_and_update with projection={'_id':0} returns None even
+        # on a successful update.  The atomicity guarantee in real MongoDB comes
+        # from MongoDB's document-level write locking — the entire update_one
+        # operation is atomic.
+        expected_rev = body.revision
+        new_rev = expected_rev + 1
+        fields["revision"] = new_rev
+
+        # Build the filter: match the exact revision, or a missing revision
+        # field when the client sends 0 (backward-compat with pre-revision docs).
+        revision_filter: dict
+        if expected_rev == 0:
+            revision_filter = {
+                "$or": [
+                    {"revision": 0},
+                    {"revision": {"$exists": False}},
+                ]
+            }
+        else:
+            revision_filter = {"revision": expected_rev}
+
+        result = await db.workouts.update_one(
+            {"id": id, "user_id": user["id"], **revision_filter},
+            {"$set": fields},
         )
-        if not current:
-            raise HTTPException(status_code=404, detail="Workout not found")
-        if current.get("revision", 0) > body.revision:
+        if result.matched_count == 0:
+            exists = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 1})
+            if not exists:
+                raise HTTPException(status_code=404, detail="Workout not found")
             raise HTTPException(
                 status_code=409,
                 detail="This workout was updated elsewhere. Reload to get the latest version.",
             )
-
-    fields = _update_fields(body)
-    fields["revision"] = 1 + (body.revision if body.revision is not None else 0)
-
-    doc = await db.workouts.find_one_and_update(
-        {"id": id, "user_id": user["id"]},
-        {"$set": fields},
-        projection={"_id": 0},
-        return_document=ReturnDocument.AFTER,
-    )
-    if not doc:
-        raise HTTPException(status_code=404, detail="Workout not found")
-    return Workout(**doc)
+        doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
+        return Workout(**doc)
+    else:
+        # No revision supplied — unconditional update (backward-compatible).
+        result = await db.workouts.update_one(
+            {"id": id, "user_id": user["id"]},
+            {"$set": fields},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Workout not found")
+        doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
+        return Workout(**doc)
 
 
 @router.post("/{id}/finish", response_model=FinishResult)
 async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
-    current = await _get_owned(id, user["id"])
-    if current.status != "active":
-        raise HTTPException(status_code=409, detail="Workout is already finished")
+    """
+    Finish a workout with the same atomic revision protection as PUT.
 
+    If `revision` is supplied, the finish is applied only when the stored
+    revision matches — preventing a stale client from finishing over a newer
+    autosave that already ran on a different tab.
+
+    The workout is never marked completed if the revision check fails; the
+    document stays active so the user can continue from the latest state.
+    """
     # Keep only completed sets; drop exercises left empty.
     cleaned: list[WorkoutExercise] = []
     for ex in body.exercises:
@@ -186,7 +224,7 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
 
     # Validate: reject finish if the workout has no meaningful working sets.
     # A working set is completed, non-warm-up, and has either positive reps or
-    # positive duration_seconds (HIGH-3: duration-only exercises like Plank).
+    # positive duration_seconds (supports time-based exercises like Plank).
     total_working = sum(
         1
         for ex in cleaned
@@ -202,30 +240,65 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
                    "Complete at least one set or discard the workout.",
         )
 
-    # BUG-04 fix: use SLIM_PROJ so we never deserialise loading_inputs for the
-    # prior-bests fetch.  This can be 40-60% smaller on workouts with barbell
-    # plate configurations recorded.
+    # Verify ownership and that the workout is still active.
+    current_doc = await db.workouts.find_one(
+        {"id": id, "user_id": user["id"]},
+        {"_id": 0, "status": 1, "revision": 1},
+    )
+    if not current_doc:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    if current_doc["status"] != "active":
+        raise HTTPException(status_code=409, detail="Workout is already finished")
+
+    # Build update fields.
+    fields = _update_fields(body)
+    # Do not let the client change the date during finish.
+    fields.pop("date", None)
+    fields.update(status="completed", finished_at=utcnow(), updated_at=utcnow())
+
+    if body.revision is not None:
+        expected_rev = body.revision
+        new_rev = expected_rev + 1
+        fields["revision"] = new_rev
+
+        revision_filter: dict
+        if expected_rev == 0:
+            revision_filter = {
+                "$or": [
+                    {"revision": 0},
+                    {"revision": {"$exists": False}},
+                ]
+            }
+        else:
+            revision_filter = {"revision": expected_rev}
+
+        result = await db.workouts.update_one(
+            {"id": id, "user_id": user["id"], "status": "active", **revision_filter},
+            {"$set": fields},
+        )
+        if result.matched_count == 0:
+            # Could be: already finished (status no longer active) or revision mismatch.
+            raise HTTPException(
+                status_code=409,
+                detail="This workout was updated elsewhere. Reload to see the latest version before finishing.",
+            )
+    else:
+        # No revision supplied — backward-compatible unconditional finish.
+        result = await db.workouts.update_one(
+            {"id": id, "user_id": user["id"], "status": "active"},
+            {"$set": fields},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=409, detail="Workout is already finished")
+
+    done = await _get_owned(id, user["id"])
+
+    # Load prior bests with slim projection (no loading_inputs).
     prior_docs = await db.workouts.find(
         {"user_id": user["id"], "status": "completed", "id": {"$ne": id}},
         SLIM_PROJ,
     ).to_list(5000)
     prior = exercise_bests([Workout(**d) for d in prior_docs])
-
-    fields = _update_fields(body)
-    fields.update(status="completed", finished_at=utcnow())
-
-    # Preserve the original workout date — do not let the client overwrite it
-    # with a different date during the finish call (Section 1 requirement).
-    # The date field is only writable via PUT /workouts/{id} (edit mode).
-    fields.pop("date", None)
-
-    # Bump revision for optimistic concurrency (HIGH-4)
-    fields["revision"] = 1 + (body.revision if body.revision is not None else 0)
-
-    await db.workouts.update_one({"id": id, "user_id": user["id"]}, {"$set": fields})
-    done = await _get_owned(id, user["id"])
-
-    # PR detection extracted to lib/training.py (Phase 0 BUG-05 / code quality)
     new_prs = detect_new_prs(prior, done)
 
     return FinishResult(

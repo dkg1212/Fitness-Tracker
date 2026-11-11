@@ -247,7 +247,7 @@ describe("workingSets", () => {
       completed: s.completed ?? true,
       loading_inputs: null,
       weight_note: null,
-      duration_seconds: null,
+      duration_seconds: s.duration_seconds ?? null,
     })),
   });
 
@@ -266,13 +266,28 @@ describe("workingSets", () => {
     expect(workingSets(ex)).toHaveLength(0);
   });
 
-  it("excludes sets without reps", () => {
+  it("excludes sets without reps AND without duration", () => {
     const ex = makeEx([{ weight: 60, reps: null }]);
+    expect(workingSets(ex)).toHaveLength(0);
+  });
+
+  it("includes duration-only sets (Finding 4 — Plank etc.)", () => {
+    const ex = makeEx([{ weight: null, reps: null, duration_seconds: 60 }]);
+    expect(workingSets(ex)).toHaveLength(1);
+  });
+
+  it("excludes duration-only sets with zero duration", () => {
+    const ex = makeEx([{ weight: null, reps: null, duration_seconds: 0 }]);
     expect(workingSets(ex)).toHaveLength(0);
   });
 
   it("includes drop sets", () => {
     const ex = makeEx([{ weight: 40, reps: 12, set_type: "D" as const }]);
+    expect(workingSets(ex)).toHaveLength(1);
+  });
+
+  it("includes failure sets", () => {
+    const ex = makeEx([{ weight: 50, reps: 6, set_type: "F" as const }]);
     expect(workingSets(ex)).toHaveLength(1);
   });
 });
@@ -312,6 +327,30 @@ describe("draftStats", () => {
       started_at: "2026-01-01T18:00:00Z", finished_at: null, updated_at: "2026-01-01T18:00:00Z",
     };
     expect(draftStats(w)).toEqual({ sets: 0, volume: 0, total: 0 });
+  });
+
+  it("duration-only sets count in draftStats (Finding 4)", () => {
+    // Plank: 60 s, no reps, no weight → counts as 1 working set, volume=0
+    const w: Workout = {
+      id: "w1", name: "Test", date: "2026-01-01", status: "active",
+      template_id: null, notes: "",
+      exercises: [{
+        uid: "e1", exercise_id: "ex1", exercise_name: "Plank",
+        muscle_group: "Core", equipment: "Bodyweight", exercise_config: null,
+        notes: "", rest_seconds: 60, effort_mode: "rpe",
+        sets: [
+          { uid: "s1", set_type: "N", weight: null, reps: null, rpe: null, rir: null,
+            completed: true, loading_inputs: null, weight_note: null, duration_seconds: 60 },
+          { uid: "s2", set_type: "W", weight: null, reps: null, rpe: null, rir: null,
+            completed: true, loading_inputs: null, weight_note: null, duration_seconds: 30 },
+        ],
+      }],
+      started_at: "2026-01-01T18:00:00Z", finished_at: null, updated_at: "2026-01-01T18:00:00Z",
+    };
+    const stats = draftStats(w);
+    expect(stats.sets).toBe(1);   // 1 working set (warmup excluded)
+    expect(stats.volume).toBe(0); // no weight × reps
+    expect(stats.total).toBe(2);  // 2 total sets
   });
 });
 

@@ -29,7 +29,12 @@ export const epley = (weight: number | null, reps: number | null): number => {
 };
 
 export const workingSets = (ex: WorkoutExercise): WorkoutSet[] =>
-  ex.sets.filter((s) => s.completed && s.set_type !== "W" && s.reps);
+  ex.sets.filter(
+    (s) =>
+      s.completed &&
+      s.set_type !== "W" &&
+      ((s.reps != null && s.reps > 0) || (s.duration_seconds != null && s.duration_seconds > 0)),
+  );
 
 export const draftStats = (w: Workout) => {
   let sets = 0;

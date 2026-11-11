@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import ExerciseCard from "@/components/ExerciseCard";
 import ExercisePicker from "@/components/ExercisePicker";
 import RestTimer from "@/components/RestTimer";
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api";
 import type { FinishResult, PreviousSets, Template, TemplateIn, Workout, WorkoutExercise } from "@/lib/types";
 import { clearLocalDraft, useAutosaveWorkout, type SyncState } from "@/lib/useAutosaveWorkout";
 import { useRestTimer } from "@/lib/useRestTimer";
@@ -91,7 +91,13 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
       setResult(r);
       invalidateAll();
     },
-    onError: () => toast.error("Couldn't finish — your workout is saved locally. Try again when online."),
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) {
+        toast.error("Workout updated elsewhere — reload to sync before finishing.", { duration: 6000 });
+      } else {
+        toast.error("Couldn't finish — your workout is saved locally. Try again when online.");
+      }
+    },
   });
 
   const discardM = useMutation({

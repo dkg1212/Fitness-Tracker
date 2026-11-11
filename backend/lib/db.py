@@ -30,6 +30,9 @@ INDEXES = {
     ],
     "splits": [IndexModel([("user_id", ASCENDING)], name="user_id", unique=True)],
     "split_history": [
+        # Non-unique index kept for backward compatibility — the unique index below
+        # covers the same query patterns. We keep this name because drop+recreate
+        # requires a migration step that is documented separately.
         IndexModel([("user_id", ASCENDING), ("effective_from", ASCENDING)], name="user_from"),
         # Covered by queries filtering on effective_to: null (open snapshots)
         IndexModel([("user_id", ASCENDING), ("effective_to", ASCENDING)], name="user_effective_to"),

@@ -72,37 +72,41 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
                 {"$set": {"effective_to": today}},
             )
 
-            # HIGH-2: Only create a new snapshot for today if one doesn't already
-            # exist.  When A → B → C all happen on the same day, the first change
-            # (A → B) archives config A as today's snapshot.  The second change
-            # (B → C) must NOT overwrite that snapshot with B — the original
-            # config A is the correct historical record for today.
-            existing_snapshot = await db.split_history.find_one(
-                {"user_id": user["id"], "effective_from": today},
-                {"_id": 0, "days": 1},
-            )
-            if not existing_snapshot:
-                # Resolve template names for the archived snapshot
-                existing_split_days = []
-                for ed in sorted(existing.get("days", []), key=lambda x: x["weekday"]):
-                    tid = ed.get("template_id")
-                    t = templates.get(tid) if tid else None
-                    existing_split_days.append(
-                        SplitHistoryDay(
-                            weekday=ed["weekday"],
-                            template_id=tid,
-                            template_name=t.name if t else None,
-                        )
+            # HIGH-2 / Finding 5: Only archive a snapshot for today if one doesn't
+            # already exist.  When A → B → C happen on the same day, the first
+            # change (A → B) archives config A.  The second change (B → C) must
+            # NOT overwrite snapshot A with B.
+            #
+            # Concurrency safety: use update_one with upsert=True and $setOnInsert
+            # so that two simultaneous requests racing to create today's snapshot
+            # are handled atomically by MongoDB — only the first insert wins,
+            # the second is a no-op.  This avoids the TOCTOU race in
+            # find_one → insert_one.
+            existing_split_days = []
+            for ed in sorted(existing.get("days", []), key=lambda x: x["weekday"]):
+                tid = ed.get("template_id")
+                t = templates.get(tid) if tid else None
+                existing_split_days.append(
+                    SplitHistoryDay(
+                        weekday=ed["weekday"],
+                        template_id=tid,
+                        template_name=t.name if t else None,
                     )
-                snapshot = SplitHistoryRecord(
-                    effective_from=today,
-                    effective_to=None,
-                    split_name=existing.get("name", "My Split"),
-                    days=existing_split_days,
                 )
-                await db.split_history.insert_one(
-                    {**snapshot.model_dump(), "user_id": user["id"]}
-                )
+            snapshot = SplitHistoryRecord(
+                effective_from=today,
+                effective_to=None,
+                split_name=existing.get("name", "My Split"),
+                days=existing_split_days,
+            )
+            # $setOnInsert only runs when a document is actually inserted (upsert).
+            # If a document already exists for (user_id, effective_from=today),
+            # the operation is a no-op — preserving the original config A.
+            await db.split_history.update_one(
+                {"user_id": user["id"], "effective_from": today},
+                {"$setOnInsert": {**snapshot.model_dump(), "user_id": user["id"]}},
+                upsert=True,
+            )
 
     # Save the new active split
     days = [{"weekday": d.weekday, "template_id": d.template_id} for d in sorted(body.days, key=lambda x: x.weekday)]
