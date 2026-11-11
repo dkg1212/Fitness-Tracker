@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { toast } from "sonner";
 import {
   CloudOff, CloudUpload, Check, AlertTriangle, MoreHorizontal, Plus, Save, Trash2, Trophy, Flag, History as HistoryIcon,
@@ -40,7 +41,8 @@ function Elapsed({ since }: { since: string }) {
 export default function WorkoutEditor({ initial }: { initial: Workout }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { draft, update, sync, restored, flush } = useAutosaveWorkout(initial);
+  const { userId } = useAuth();
+  const { draft, update, sync, restored, flush } = useAutosaveWorkout(initial, userId);
   const { rest, start: startRest, adjust, skip } = useRestTimer();
   const isEdit = draft.status === "completed";
 
@@ -82,7 +84,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
   const finishM = useMutation({
     mutationFn: () => apiPost<FinishResult>(`/workouts/${draft.id}/finish`, toUpdate(draft)),
     onSuccess: (r) => {
-      clearLocalDraft(draft.id);
+      clearLocalDraft(draft.id, userId);
       skip();
       setFinishOpen(false);
       setResult(r);
@@ -94,7 +96,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
   const discardM = useMutation({
     mutationFn: () => apiDelete<void>(`/workouts/${draft.id}`),
     onSuccess: () => {
-      clearLocalDraft(draft.id);
+      clearLocalDraft(draft.id, userId);
       skip();
       invalidateAll();
       qc.setQueryData(["workout", "active"], null);
@@ -138,7 +140,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
     await flush();
     invalidateAll();
     qc.invalidateQueries({ queryKey: ["workout", draft.id] });
-    clearLocalDraft(draft.id);
+    clearLocalDraft(draft.id, userId);
     toast.success("Workout updated");
     navigate("/history");
   };

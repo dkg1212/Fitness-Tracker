@@ -27,10 +27,12 @@ async def update_profile(body: ProfileUpdate, user: dict = Depends(current_user)
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Name is required")
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$set": {"name": name, "weight_kg": body.weight_kg, "height_cm": body.height_cm, "sex": body.sex}},
-    )
+    update_fields: dict = {"name": name, "weight_kg": body.weight_kg, "height_cm": body.height_cm}
+    # Only write sex when the client supplied a value; never overwrite an existing
+    # sex choice with null just because the user didn't re-select it (BUG-11).
+    if body.sex is not None:
+        update_fields["sex"] = body.sex
+    await db.users.update_one({"id": user["id"]}, {"$set": update_fields})
     updated = await db.users.find_one({"id": user["id"]}, {"_id": 0})
     return UserPublic(**updated)
 

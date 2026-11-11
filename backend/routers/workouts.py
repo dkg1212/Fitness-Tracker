@@ -4,11 +4,18 @@ from pymongo import ReturnDocument
 from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
-from lib.training import completed_set_count, duration_min, epley, epley_for_equipment, exercise_bests, summarize, weight_note_for, working_sets, workout_volume
+from lib.training import (
+    SLIM_PROJ,
+    completed_set_count,
+    detect_new_prs,
+    duration_min,
+    exercise_bests,
+    summarize,
+    workout_volume,
+)
 from models.common import utcnow
 from models.workout import (
     FinishResult,
-    PRRecord,
     Workout,
     WorkoutExercise,
     WorkoutSet,
@@ -82,7 +89,9 @@ async def previous_sets(exercise_ids: str = "", exclude: str | None = None, user
     query: dict = {"user_id": user["id"], "status": "completed", "exercises.exercise_id": {"$in": list(wanted)}}
     if exclude:
         query["id"] = {"$ne": exclude}
-    async for doc in db.workouts.find(query, {"_id": 0}).sort(_SORT).limit(200):
+    # Use SLIM_PROJ to avoid materialising loading_inputs for a lookup that only
+    # needs set weight/reps (RISK-11).
+    async for doc in db.workouts.find(query, SLIM_PROJ).sort(_SORT).limit(200):
         w = Workout(**doc)
         for ex in w.exercises:
             if ex.exercise_id in wanted and ex.exercise_id not in out:
@@ -147,7 +156,7 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
     if current.status != "active":
         raise HTTPException(status_code=409, detail="Workout is already finished")
 
-    # keep only completed sets; drop exercises left empty
+    # Keep only completed sets; drop exercises left empty.
     cleaned: list[WorkoutExercise] = []
     for ex in body.exercises:
         sets = [s for s in ex.sets if s.completed]
@@ -155,46 +164,42 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
             cleaned.append(ex.model_copy(update={"sets": sets}))
     body = body.model_copy(update={"exercises": cleaned})
 
+    # Validate: reject finish if the workout has no meaningful working sets.
+    total_working = sum(
+        1
+        for ex in cleaned
+        for s in ex.sets
+        if s.completed and s.set_type != "W" and s.reps
+    )
+    if total_working == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot finish a workout with no completed working sets. "
+                   "Complete at least one set or discard the workout.",
+        )
+
+    # BUG-04 fix: use SLIM_PROJ so we never deserialise loading_inputs for the
+    # prior-bests fetch.  This can be 40-60% smaller on workouts with barbell
+    # plate configurations recorded.
     prior_docs = await db.workouts.find(
-        {"user_id": user["id"], "status": "completed", "id": {"$ne": id}}, {"_id": 0}
+        {"user_id": user["id"], "status": "completed", "id": {"$ne": id}},
+        SLIM_PROJ,
     ).to_list(5000)
     prior = exercise_bests([Workout(**d) for d in prior_docs])
 
     fields = _update_fields(body)
     fields.update(status="completed", finished_at=utcnow())
+
+    # Preserve the original workout date — do not let the client overwrite it
+    # with a different date during the finish call (Section 1 requirement).
+    # The date field is only writable via PUT /workouts/{id} (edit mode).
+    fields.pop("date", None)
+
     await db.workouts.update_one({"id": id, "user_id": user["id"]}, {"$set": fields})
     done = await _get_owned(id, user["id"])
 
-    new_prs: list[PRRecord] = []
-    for ex in done.exercises:
-        sets = working_sets(ex)
-        if not sets or ex.exercise_id not in prior:
-            continue
-        p = prior[ex.exercise_id]
-        equipment = ex.equipment
-        top = max(sets, key=lambda s: ((s.weight or 0), s.reps or 0))
-        if (top.weight or 0) > p["best_weight"]:
-            new_prs.append(PRRecord(
-                exercise_id=ex.exercise_id,
-                exercise_name=ex.exercise_name,
-                kind="weight",
-                value=top.weight or 0,
-                weight=top.weight or 0,
-                reps=top.reps or 0,
-                weight_note=top.weight_note or weight_note_for(equipment),
-            ))
-        best_e1 = max(sets, key=lambda s: epley_for_equipment(s.weight, s.reps, equipment))
-        e1 = epley_for_equipment(best_e1.weight, best_e1.reps, equipment)
-        if e1 > p["best_e1rm"]:
-            new_prs.append(PRRecord(
-                exercise_id=ex.exercise_id,
-                exercise_name=ex.exercise_name,
-                kind="e1rm",
-                value=e1,
-                weight=best_e1.weight or 0,
-                reps=best_e1.reps or 0,
-                weight_note=best_e1.weight_note or weight_note_for(equipment),
-            ))
+    # PR detection extracted to lib/training.py (Phase 0 BUG-05 / code quality)
+    new_prs = detect_new_prs(prior, done)
 
     return FinishResult(
         workout=done,

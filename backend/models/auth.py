@@ -31,7 +31,9 @@ class ProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     weight_kg: float = Field(gt=20, le=500)
     height_cm: float = Field(gt=50, le=260)
-    sex: Literal["male", "female"]
+    # sex is optional so that the frontend can submit the form before the user
+    # has selected a value (BUG-11 — previously a missing sex caused a 422).
+    sex: Literal["male", "female"] | None = None
 
 
 class OkResponse(BaseModel):

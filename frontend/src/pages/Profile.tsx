@@ -46,7 +46,8 @@ export default function Profile() {
         name,
         weight_kg: Number(weight),
         height_cm: Number(height),
-        sex: sex as Sex,
+        // Only send sex when the user has selected a value (backend accepts null)
+        sex: sex ? (sex as Sex) : null,
       } satisfies ProfileUpdate);
     },
     onSuccess: (saved) => {

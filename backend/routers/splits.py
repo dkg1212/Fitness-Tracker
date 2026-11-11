@@ -75,8 +75,13 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
                 split_name=existing.get("name", "My Split"),
                 days=existing_split_days,
             )
-            await db.split_history.insert_one(
-                {**snapshot.model_dump(), "user_id": user["id"]}
+            # BUG-07 fix: use upsert on (user_id, effective_from) to prevent
+            # duplicate overlapping snapshots when the split is changed twice
+            # in the same calendar day.  The second save overwrites the first.
+            await db.split_history.update_one(
+                {"user_id": user["id"], "effective_from": today},
+                {"$set": {**snapshot.model_dump(), "user_id": user["id"]}},
+                upsert=True,
             )
 
     days = [{"weekday": d.weekday, "template_id": d.template_id} for d in sorted(body.days, key=lambda x: x.weekday)]

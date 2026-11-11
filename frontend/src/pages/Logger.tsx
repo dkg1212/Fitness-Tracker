@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { Dumbbell, Play, Plus, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/PageHeader";
@@ -81,6 +82,7 @@ function NoActive() {
 
 export default function Logger() {
   const { id } = useParams();
+  const { userId } = useAuth();
   const activeQ = useActiveWorkout();
   const byIdQ = useQuery({
     queryKey: ["workout", id],
@@ -91,7 +93,7 @@ export default function Logger() {
 
   const unreachable = q.isError || q.fetchStatus === "paused";
   if (unreachable) {
-    const local = readLocalDraft(id);
+    const local = readLocalDraft(id, userId);
     if (local) return <WorkoutEditor key={local.id} initial={local} />;
     return (
       <div className="mx-auto max-w-xl rounded-xl border border-border bg-surface p-8 text-center" data-testid="logger-unreachable">

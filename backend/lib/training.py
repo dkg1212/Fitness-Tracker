@@ -1,4 +1,4 @@
-"""Training math: volume, estimated 1RM (Epley), per-exercise bests.
+"""Training math: volume, estimated 1RM (Epley), per-exercise bests, PR detection.
 
 Equipment conventions
 ─────────────────────
@@ -23,7 +23,7 @@ For backward compatibility, existing sets without loading_inputs just
 use weight as-is; nothing is reinterpreted.
 """
 
-from models.workout import Workout, WorkoutExercise, WorkoutSet, WorkoutSummary
+from models.workout import PRRecord, Workout, WorkoutExercise, WorkoutSet, WorkoutSummary
 
 # Equipment types where e1RM calculation is meaningful
 _E1RM_SUPPORTED = {
@@ -33,6 +33,33 @@ _E1RM_SUPPORTED = {
 
 # Equipment types where the conventional "per-hand/per-dumbbell" labelling applies
 _PER_HAND_EQUIPMENT = {"Dumbbell", "Kettlebell"}
+
+# ---------------------------------------------------------------------------
+# Slim MongoDB projection for analytics / PR queries.
+# Excludes loading_inputs (can be large) and other non-numeric fields.
+# Must include all required Workout and WorkoutExercise fields (no defaults).
+# ---------------------------------------------------------------------------
+SLIM_PROJ = {
+    "_id": 0,
+    "id": 1,
+    "name": 1,
+    "date": 1,
+    "status": 1,
+    "template_id": 1,
+    "started_at": 1,
+    "finished_at": 1,
+    "exercises.exercise_id": 1,
+    "exercises.exercise_name": 1,
+    "exercises.muscle_group": 1,
+    "exercises.equipment": 1,
+    "exercises.sets.completed": 1,
+    "exercises.sets.set_type": 1,
+    "exercises.sets.weight": 1,
+    "exercises.sets.reps": 1,
+    "exercises.sets.weight_note": 1,
+    # intentionally excludes: loading_inputs, notes, exercise_config,
+    # rest_seconds, effort_mode, uid
+}
 
 
 def epley(weight: float | None, reps: int | None) -> float:
@@ -143,3 +170,50 @@ def exercise_bests(workouts: list[Workout]) -> dict[str, dict]:
                 if e1 > b["best_e1rm"]:
                     b.update(best_e1rm=e1, best_e1rm_date=w.date)
     return bests
+
+
+def detect_new_prs(prior: dict[str, dict], done: Workout) -> list[PRRecord]:
+    """
+    Compare completed sets in `done` against previously-computed `prior` bests.
+
+    Returns a list of new PRs (weight or e1RM) achieved in this session.
+    Extracted from routers/workouts.py so it can be unit-tested independently.
+
+    Note: an exercise with no prior history is NOT flagged as a PR (first-time
+    best is not surfaced as a PR — intentional UX decision).
+    """
+    new_prs: list[PRRecord] = []
+    for ex in done.exercises:
+        sets = working_sets(ex)
+        if not sets or ex.exercise_id not in prior:
+            continue
+        p = prior[ex.exercise_id]
+        equipment = ex.equipment
+
+        # Best weight PR
+        top = max(sets, key=lambda s: ((s.weight or 0), s.reps or 0))
+        if (top.weight or 0) > p["best_weight"]:
+            new_prs.append(PRRecord(
+                exercise_id=ex.exercise_id,
+                exercise_name=ex.exercise_name,
+                kind="weight",
+                value=top.weight or 0,
+                weight=top.weight or 0,
+                reps=top.reps or 0,
+                weight_note=top.weight_note or weight_note_for(equipment),
+            ))
+
+        # Best e1RM PR
+        best_e1 = max(sets, key=lambda s: epley_for_equipment(s.weight, s.reps, equipment))
+        e1 = epley_for_equipment(best_e1.weight, best_e1.reps, equipment)
+        if e1 > p["best_e1rm"]:
+            new_prs.append(PRRecord(
+                exercise_id=ex.exercise_id,
+                exercise_name=ex.exercise_name,
+                kind="e1rm",
+                value=e1,
+                weight=best_e1.weight or 0,
+                reps=best_e1.reps or 0,
+                weight_note=best_e1.weight_note or weight_note_for(equipment),
+            ))
+    return new_prs

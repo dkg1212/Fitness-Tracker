@@ -12,20 +12,27 @@ Performance notes
   Split history and current split are fetched in parallel.
 
 • /history/splits:  Thin metadata only; no exercise data loaded.
+
+RISK-06 fix
+───────────
+The original _split_for_date cache compared a list object to a string with
+`if split_days is not _cached_split_iso`, which always evaluates True (a list
+is never `is` a str), so the lookup dict was rebuilt on every loop iteration.
+Fixed: the cache key is now `id(split_days)` — the CPython object identity of
+the list returned by _split_for_date.  Consecutive calendar days that resolve
+to the same split config object get a single lookup dict build.
 """
 from __future__ import annotations
 
 import asyncio
 import calendar as _cal
-import os
 from collections import defaultdict
 from datetime import date, timedelta
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
 from lib.auth import current_user
-from lib.dates import today_iso
+from lib.dates import get_app_tz, today_iso
 from lib.db import db
 from lib.training import completed_set_count, duration_min, workout_volume
 from models.history import (
@@ -39,8 +46,6 @@ from models.history import (
 from models.workout import Workout
 
 router = APIRouter(prefix="/history", tags=["history"])
-
-TZ = ZoneInfo(os.getenv("APP_TZ", "UTC"))
 
 # ─── Minimal projections ──────────────────────────────────────────────────────
 
@@ -227,8 +232,8 @@ async def consistency_stats(user: dict = Depends(current_user)):
 
     current_streak, longest_streak = _compute_streaks(unique_days, today)
 
-    # Pre-build split weekday lookups keyed by effective_from for O(1) day lookup
-    # Build scheduled day lists by walking calendar days
+    # Walk every calendar day from the first workout up to (but not including)
+    # today, checking whether a workout was scheduled and completed.
     workout_days_set = set(unique_days)
     first_date = date.fromisoformat(unique_days[0])
 
@@ -236,22 +241,23 @@ async def consistency_stats(user: dict = Depends(current_user)):
     week_scheduled: list[str] = []
     month_scheduled: list[str] = []
 
-    # Cache the split lookup for the most-recently seen split to avoid repeated
-    # _split_for_date traversals on consecutive days in the same period.
-    _cached_split_iso: str | None = None
+    # RISK-06 fix: cache the lookup dict keyed by the CPython object identity
+    # of the split_days list returned by _split_for_date.  On consecutive days
+    # within the same split period, _split_for_date returns the SAME list
+    # object, so id() is stable and we avoid rebuilding the dict every day.
+    _cached_split_id: int | None = None
     _cached_lookup: dict[int, SplitHistoryDay | None] = {}
 
     cursor = first_date
-    today_iso_str = today.isoformat()
     while cursor < today:
         c_iso = cursor.isoformat()
         split_days = _split_for_date(split_history, c_iso, current_split_days)
 
-        # Rebuild the lookup only when the active split might have changed.
-        # Simple heuristic: re-build whenever the split days reference differs.
-        if split_days is not _cached_split_iso:  # type: ignore[comparison-overlap]
+        # Rebuild lookup only when the split config object identity changes.
+        split_id = id(split_days)
+        if split_id != _cached_split_id:
             _cached_lookup = _build_weekday_lookup(split_days)
-            _cached_split_iso = split_days  # type: ignore[assignment]
+            _cached_split_id = split_id
 
         entry = _cached_lookup.get(cursor.weekday())
         if entry and entry.template_id:

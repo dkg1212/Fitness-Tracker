@@ -21,7 +21,7 @@ from lib.auth import current_user
 from lib.dates import today_iso
 from lib.db import db
 from lib.exercise_meta import EXERCISE_META
-from lib.training import epley, epley_for_equipment, exercise_bests, set_volume, weight_note_for, working_sets, workout_volume
+from lib.training import SLIM_PROJ, epley_for_equipment, exercise_bests, set_volume, working_sets, workout_volume
 from models.analytics import (
     AnalyticsSummary,
     ExerciseProgress,
@@ -36,28 +36,8 @@ from models.workout import Workout
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-# Slim projection — omit loading_inputs (can be large) and other non-numeric fields.
-# Must include all required Workout and WorkoutExercise fields (those without defaults).
-_SLIM_PROJ = {
-    "_id": 0,
-    "id": 1,
-    "name": 1,
-    "date": 1,
-    "status": 1,
-    "template_id": 1,
-    "started_at": 1,
-    "finished_at": 1,
-    "exercises.exercise_id": 1,
-    "exercises.exercise_name": 1,
-    "exercises.muscle_group": 1,
-    "exercises.equipment": 1,
-    "exercises.sets.completed": 1,
-    "exercises.sets.set_type": 1,
-    "exercises.sets.weight": 1,
-    "exercises.sets.reps": 1,
-    "exercises.sets.weight_note": 1,
-    # intentionally excludes: loading_inputs, notes, exercise_config, rest_seconds, effort_mode, uid
-}
+# Slim projection is shared from lib.training (SLIM_PROJ).
+# Defined once there so workouts.py and analytics.py stay in sync.
 
 
 def _week_start(d: date) -> date:
@@ -67,7 +47,7 @@ def _week_start(d: date) -> date:
 async def _completed_slim(user_id: str) -> list[Workout]:
     """Load completed workouts with the slim projection sorted oldest-first."""
     docs = (
-        await db.workouts.find({"user_id": user_id, "status": "completed"}, _SLIM_PROJ)
+        await db.workouts.find({"user_id": user_id, "status": "completed"}, SLIM_PROJ)
         .sort("date", 1)
         .to_list(10_000)
     )
@@ -147,7 +127,7 @@ async def exercise_progress(exercise_id: str, user: dict = Depends(current_user)
     docs = (
         await db.workouts.find(
             {"user_id": user["id"], "status": "completed", "exercises.exercise_id": exercise_id},
-            _SLIM_PROJ,
+            SLIM_PROJ,
         )
         .sort("date", 1)
         .to_list(2_000)
@@ -190,7 +170,7 @@ async def sub_muscle_breakdown(user: dict = Depends(current_user)):
     docs = (
         await db.workouts.find(
             {"user_id": user["id"], "status": "completed", "date": {"$gte": cutoff}},
-            _SLIM_PROJ,
+            SLIM_PROJ,
         )
         .sort("date", 1)
         .to_list(500)
