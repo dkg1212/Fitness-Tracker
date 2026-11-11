@@ -76,6 +76,7 @@ export const toUpdate = (w: Workout): WorkoutUpdate => ({
   notes: w.notes,
   date: w.date,
   exercises: w.exercises,
+  revision: w.revision,
 });
 
 // ── Loading calculation helpers ──────────────────────────────────────────────

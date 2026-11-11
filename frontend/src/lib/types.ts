@@ -25,7 +25,7 @@ export const EQUIPMENT: Equipment[] = [
 export interface LoginRequest { email: string; password: string }
 export interface RegisterRequest extends LoginRequest { name: string; weight_kg: number; height_cm: number }
 export type Sex = "male" | "female";
-export interface ProfileUpdate { name: string; weight_kg: number; height_cm: number; sex: Sex }
+export interface ProfileUpdate { name: string; weight_kg: number; height_cm: number; sex: Sex | null }
 export interface User {
   id: string;
   email: string;
@@ -154,7 +154,7 @@ export interface WorkoutExercise {
   effort_mode: EffortMode;
   sets: WorkoutSet[];
 }
-export interface WorkoutUpdate { name: string; notes: string; date: string | null; exercises: WorkoutExercise[] }
+export interface WorkoutUpdate { name: string; notes: string; date: string | null; exercises: WorkoutExercise[]; revision?: number }
 export interface WorkoutStart { template_id: string | null; name: string | null }
 export interface Workout {
   id: string;
@@ -167,6 +167,9 @@ export interface Workout {
   started_at: string;
   finished_at: string | null;
   updated_at: string;
+  /** Server-managed revision for optimistic concurrency (HIGH-4).
+   *  Clients send the revision they last saw; the server rejects stale writes with 409. */
+  revision?: number;
 }
 export interface WorkoutSummary {
   id: string;

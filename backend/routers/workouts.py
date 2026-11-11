@@ -64,6 +64,7 @@ def _update_fields(body: WorkoutUpdate) -> dict:
     }
     if body.date:
         fields["date"] = body.date
+    # revision is set by the caller after calling _update_fields
     return fields
 
 
@@ -139,9 +140,28 @@ async def get_workout(id: str, user: dict = Depends(current_user)):
 
 @router.put("/{id}", response_model=Workout)
 async def update_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
+    # Optimistic concurrency (HIGH-4): if the client sends a revision, reject
+    # the update if the server's revision is newer.  This prevents a stale
+    # browser tab from overwriting data saved by a newer session.
+    if body.revision is not None:
+        current = await db.workouts.find_one(
+            {"id": id, "user_id": user["id"]},
+            {"_id": 0, "revision": 1},
+        )
+        if not current:
+            raise HTTPException(status_code=404, detail="Workout not found")
+        if current.get("revision", 0) > body.revision:
+            raise HTTPException(
+                status_code=409,
+                detail="This workout was updated elsewhere. Reload to get the latest version.",
+            )
+
+    fields = _update_fields(body)
+    fields["revision"] = 1 + (body.revision if body.revision is not None else 0)
+
     doc = await db.workouts.find_one_and_update(
         {"id": id, "user_id": user["id"]},
-        {"$set": _update_fields(body)},
+        {"$set": fields},
         projection={"_id": 0},
         return_document=ReturnDocument.AFTER,
     )
@@ -165,11 +185,15 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
     body = body.model_copy(update={"exercises": cleaned})
 
     # Validate: reject finish if the workout has no meaningful working sets.
+    # A working set is completed, non-warm-up, and has either positive reps or
+    # positive duration_seconds (HIGH-3: duration-only exercises like Plank).
     total_working = sum(
         1
         for ex in cleaned
         for s in ex.sets
-        if s.completed and s.set_type != "W" and s.reps
+        if s.completed
+        and s.set_type != "W"
+        and ((s.reps and s.reps > 0) or (s.duration_seconds and s.duration_seconds > 0))
     )
     if total_working == 0:
         raise HTTPException(
@@ -194,6 +218,9 @@ async def finish_workout(id: str, body: WorkoutUpdate, user: dict = Depends(curr
     # with a different date during the finish call (Section 1 requirement).
     # The date field is only writable via PUT /workouts/{id} (edit mode).
     fields.pop("date", None)
+
+    # Bump revision for optimistic concurrency (HIGH-4)
+    fields["revision"] = 1 + (body.revision if body.revision is not None else 0)
 
     await db.workouts.update_one({"id": id, "user_id": user["id"]}, {"$set": fields})
     done = await _get_owned(id, user["id"])

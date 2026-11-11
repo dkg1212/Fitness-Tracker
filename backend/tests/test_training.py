@@ -136,6 +136,26 @@ class TestWorkingSets:
         ex = _ex(sets=[_set(reps=None, completed=True, set_type="N")])
         assert working_sets(ex) == []
 
+    def test_duration_only_set_counts(self):
+        """HIGH-3: A set with duration_seconds but no reps should count."""
+        from datetime import timedelta
+        s = WorkoutSet(uid=_uid(), weight=None, reps=None, completed=True, set_type="N", duration_seconds=60)
+        ex = _ex(sets=[s])
+        assert len(working_sets(ex)) == 1
+
+    def test_duration_zero_excluded(self):
+        """A set with duration_seconds=0 should not count as a working set."""
+        s = WorkoutSet(uid=_uid(), weight=None, reps=None, completed=True, set_type="N", duration_seconds=0)
+        ex = _ex(sets=[s])
+        assert working_sets(ex) == []
+
+    def test_mixed_reps_and_duration(self):
+        """An exercise with both rep-based and duration-based sets counts both."""
+        dur_set = WorkoutSet(uid=_uid(), weight=None, reps=None, completed=True, set_type="N", duration_seconds=45)
+        rep_set = _set(weight=60, reps=8, completed=True, set_type="N")
+        ex = _ex(sets=[dur_set, rep_set])
+        assert len(working_sets(ex)) == 2
+
     def test_drop_set_counts(self):
         ex = _ex(sets=[_set(completed=True, set_type="D")])
         assert len(working_sets(ex)) == 1

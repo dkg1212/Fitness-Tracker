@@ -52,6 +52,9 @@ class WorkoutUpdate(BaseModel):
     notes: str = Field(default="", max_length=4000)
     date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     exercises: list[WorkoutExercise] = Field(default_factory=list)
+    # Client-sent revision for optimistic concurrency (HIGH-4).
+    # The server rejects the update if its stored revision is newer.
+    revision: int | None = None
 
 
 class WorkoutStart(BaseModel):
@@ -70,6 +73,10 @@ class Workout(BaseModel):
     started_at: UtcDatetime = Field(default_factory=utcnow)
     finished_at: UtcDatetime | None = None
     updated_at: UtcDatetime = Field(default_factory=utcnow)
+    # Server-managed revision counter for optimistic concurrency (HIGH-4).
+    # Incremented on every successful PUT.  Clients send the revision they last
+    # saw; the server rejects stale writes with HTTP 409.
+    revision: int = 0
 
 
 class WorkoutSummary(BaseModel):

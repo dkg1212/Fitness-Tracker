@@ -27,6 +27,7 @@ const SYNC_META: Record<SyncState, { label: string; icon: typeof Check; cls: str
   saving: { label: "Saving…", icon: CloudUpload, cls: "text-cyan-focus border-cyan-focus/40" },
   offline: { label: "Offline · stored locally", icon: CloudOff, cls: "text-amber-warn border-amber-warn/50" },
   error: { label: "Retrying…", icon: AlertTriangle, cls: "text-crimson border-crimson/50" },
+  conflict: { label: "Conflict — reload", icon: AlertTriangle, cls: "text-amber-warn border-amber-warn/70" },
 };
 
 function Elapsed({ since }: { since: string }) {
@@ -247,6 +248,31 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-warn/40 bg-amber-warn/10 p-3 text-sm" data-testid="restored-draft-banner">
           <HistoryIcon className="mt-0.5 size-4 shrink-0 text-amber-warn" />
           <p>Restored unsynced changes from this device. They're being saved to the server{sync === "offline" ? " when you're back online" : ""}.</p>
+        </div>
+      )}
+
+      {sync === "conflict" && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-warn/70 bg-amber-warn/15 p-3 text-sm" data-testid="conflict-banner">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-warn" />
+          <div className="flex-1">
+            <p className="font-semibold text-amber-warn">This workout was updated elsewhere</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Your local changes conflict with a newer version on the server.
+              Reload to use the server's version, or your edits are safely stored locally.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                clearLocalDraft(draft.id, userId);
+                window.location.reload();
+              }}
+              data-testid="conflict-reload-button"
+            >
+              Reload from server
+            </Button>
+          </div>
         </div>
       )}
 

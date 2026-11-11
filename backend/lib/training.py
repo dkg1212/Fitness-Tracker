@@ -94,8 +94,18 @@ def weight_note_for(equipment: str | None) -> str:
 
 
 def working_sets(ex: WorkoutExercise) -> list[WorkoutSet]:
-    """Completed, non-warm-up sets with reps logged — the ones that count."""
-    return [s for s in ex.sets if s.completed and s.set_type != "W" and s.reps]
+    """Completed, non-warm-up sets that have meaningful effort logged.
+
+    A set counts as a working set if it is completed, non-warm-up, AND has
+    either positive reps or positive duration_seconds (HIGH-3: supports
+    time-based exercises like Plank without reps).
+    """
+    return [
+        s for s in ex.sets
+        if s.completed
+        and s.set_type != "W"
+        and ((s.reps and s.reps > 0) or (s.duration_seconds and s.duration_seconds > 0))
+    ]
 
 
 def set_volume(s: WorkoutSet) -> float:

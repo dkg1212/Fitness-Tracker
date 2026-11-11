@@ -192,6 +192,7 @@ cp .env.example .env
 #   MONGODB_URI=mongodb://127.0.0.1:27017   (or your Atlas URI)
 #   MONGODB_DATABASE=ironcore
 #   APP_TZ=UTC
+#   CLERK_AUTHORIZED_PARTIES=http://localhost:5173
 #   CORS_ORIGINS=http://localhost:5173
 ```
 
@@ -244,7 +245,8 @@ Open [http://localhost:5173](http://localhost:5173).
 | `MONGODB_URI` | ✅ | `mongodb://127.0.0.1:27017` | MongoDB connection string |
 | `MONGODB_DATABASE` | | `ironcore` | Database name |
 | `APP_TZ` | | `UTC` | Timezone for workout date assignment (e.g. `Asia/Kolkata`) |
-| `CORS_ORIGINS` | | `http://localhost:5173` | Comma-separated allowed origins |
+| `CLERK_AUTHORIZED_PARTIES` | | Falls back to `CORS_ORIGINS` | Comma-separated frontend origins whose Clerk JWTs are accepted. Set explicitly in production to your Vercel URL. |
+| `CORS_ORIGINS` | | `http://localhost:5173` | Comma-separated allowed CORS origins |
 
 > **Never commit `.env` or `.env.local` to source control.**  
 > Both are listed in `.gitignore`.
@@ -272,6 +274,7 @@ Open [http://localhost:5173](http://localhost:5173).
 5. Add environment variables:
    - `CLERK_SECRET_KEY` — your Clerk **live** secret key
    - `MONGODB_URI` — your Atlas connection string
+   - `CLERK_AUTHORIZED_PARTIES` — your Vercel frontend URL (e.g. `https://ironcore.vercel.app`). This restricts which origins' Clerk JWTs are accepted. Falls back to `CORS_ORIGINS` if not set, but should be explicit in production.
    - `CORS_ORIGINS` — your Vercel frontend URL (e.g. `https://ironcore.vercel.app`)
    - `APP_TZ` — your preferred timezone
 
