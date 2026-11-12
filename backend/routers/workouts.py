@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pymongo.errors import DuplicateKeyError
 
 from lib.auth import current_user
 from lib.dates import today_iso
@@ -125,7 +126,12 @@ async def start_workout(body: WorkoutStart, user: dict = Depends(current_user)):
                 )
             )
     w = Workout(name=name, date=today_iso(), template_id=body.template_id, exercises=exercises)
-    await db.workouts.insert_one({**w.model_dump(), "user_id": user["id"]})
+    try:
+        await db.workouts.insert_one({**w.model_dump(), "user_id": user["id"]})
+    except DuplicateKeyError as exc:
+        # The partial unique index is the authoritative guard when two starts
+        # pass the read check concurrently.
+        raise HTTPException(status_code=409, detail="You already have an active workout") from exc
     return w
 
 
@@ -137,33 +143,42 @@ async def get_workout(id: str, user: dict = Depends(current_user)):
 @router.put("/{id}", response_model=Workout)
 async def update_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
     """
-    Save autosave edits.
+    Save an autosave edit only if the client holds the current revision.
 
-    The autosave PUT is intentionally unconditional — the last write wins.
-    This is correct for the autosave use-case: each PUT from the same browser
-    tab carries the full current state of the workout, so the latest PUT always
-    has the most up-to-date data.
-
-    Revision is still tracked and incremented on every PUT so the finish
-    endpoint can detect genuine stale-finish scenarios (e.g. a different tab
-    or device finishing an outdated version of the workout).
-
-    We do NOT reject autosave PUTs based on revision because that causes
-    spurious 409 conflicts when the debounce timer fires before a previous
-    PUT's response has been received and applied to draftRef.current.
+    The conditional update is atomic, so a stale tab cannot overwrite a newer
+    save or make its stale revision look current before finishing.
     """
     fields = _update_fields(body)
     fields["updated_at"] = utcnow()
-    # Increment revision unconditionally — finish endpoint uses this to guard
-    # against finishing with stale exercise data.
-    fields["revision"] = (body.revision or 0) + 1
+    if body.revision is None:
+        # Legacy clients are allowed one unconditional save, while current
+        # clients always send a revision.
+        result = await db.workouts.update_one(
+            {"id": id, "user_id": user["id"]}, {"$set": fields},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Workout not found")
+        doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
+        return Workout(**doc)
 
+    expected_revision = body.revision
+    revision_filter = (
+        {"$or": [{"revision": 0}, {"revision": {"$exists": False}}]}
+        if expected_revision == 0
+        else {"revision": expected_revision}
+    )
+    fields["revision"] = expected_revision + 1
     result = await db.workouts.update_one(
-        {"id": id, "user_id": user["id"]},
-        {"$set": fields},
+        {"id": id, "user_id": user["id"], **revision_filter}, {"$set": fields},
     )
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Workout not found")
+        exists = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 1})
+        if not exists:
+            raise HTTPException(status_code=404, detail="Workout not found")
+        raise HTTPException(
+            status_code=409,
+            detail="This workout was updated elsewhere. Reload to get the latest version.",
+        )
     doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
     return Workout(**doc)
 

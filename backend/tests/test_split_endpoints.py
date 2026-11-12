@@ -13,8 +13,8 @@ Finding 5 — split history concurrency:
   real MongoDB test instance (e.g. a local Atlas free tier or testcontainers).
 """
 import asyncio
-import pytest
 from datetime import date
+import routers.splits as splits_mod
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -42,8 +42,8 @@ async def _create_template(client, name):
 # ── Same-day split changes (Finding 5 / HIGH-2) ───────────────────────────────
 
 class TestSameDaySplitChanges:
-    async def test_a_to_b_same_day(self, client):
-        """A → B: one snapshot (A), active is B."""
+    async def test_a_to_b_same_day_has_no_zero_length_snapshot(self, client):
+        """A → B on its creation day must resolve to active split B."""
         tpl_a = await _create_template(client, "A")
         tpl_b = await _create_template(client, "B")
 
@@ -54,8 +54,7 @@ class TestSameDaySplitChanges:
         assert all(d["template_id"] == tpl_b for d in active["days"])
 
         records = (await client.get("/api/history/splits")).json()
-        assert len(records) == 1
-        assert all(d["template_id"] == tpl_a for d in records[0]["days"])
+        assert records == []
 
     async def test_a_to_b_to_c_same_day(self, client):
         """A → B → C on the same day: snapshot preserves A (not B), active is C."""
@@ -70,21 +69,22 @@ class TestSameDaySplitChanges:
         active = (await client.get("/api/split")).json()
         assert all(d["template_id"] == tpl_c for d in active["days"])
 
-        records = (await client.get("/api/history/splits")).json()
-        assert len(records) == 1, f"Expected 1 snapshot, got {len(records)}"
-        assert all(d["template_id"] == tpl_a for d in records[0]["days"]), \
-            "Snapshot must contain original config A, not intermediate B"
+        assert (await client.get("/api/history/splits")).json() == []
 
-    async def test_different_days(self, client):
-        """The second save creates a snapshot of the first config."""
+    async def test_different_days_archives_the_correct_interval(self, client, monkeypatch):
+        """A is historical until B becomes active, never on B's first day."""
         tpl_a = await _create_template(client, "A")
         tpl_b = await _create_template(client, "B")
 
+        monkeypatch.setattr(splits_mod, "today_iso", lambda: "2026-01-01")
         await client.put("/api/split", json=_split_body("A", [tpl_a] * 7))
+        monkeypatch.setattr(splits_mod, "today_iso", lambda: "2026-01-03")
         await client.put("/api/split", json=_split_body("B", [tpl_b] * 7))
 
         records = (await client.get("/api/history/splits")).json()
         assert len(records) == 1
+        assert records[0]["effective_from"] == "2026-01-01"
+        assert records[0]["effective_to"] == "2026-01-03"
         tids = [d["template_id"] for d in records[0]["days"]]
         assert all(t == tpl_a for t in tids)
 
@@ -94,10 +94,12 @@ class TestSameDaySplitChanges:
         await client.put("/api/split", json=_split_body("A", [tpl_a] * 7))
         assert len((await client.get("/api/history/splits")).json()) == 0
 
-    async def test_historical_lookup_after_change(self, client):
+    async def test_historical_lookup_after_change(self, client, monkeypatch):
         tpl_a = await _create_template(client, "A")
         tpl_b = await _create_template(client, "B")
+        monkeypatch.setattr(splits_mod, "today_iso", lambda: "2026-01-01")
         await client.put("/api/split", json=_split_body("A", [tpl_a] * 7))
+        monkeypatch.setattr(splits_mod, "today_iso", lambda: "2026-01-02")
         await client.put("/api/split", json=_split_body("B", [tpl_b] * 7))
 
         records = (await client.get("/api/history/splits")).json()
@@ -136,13 +138,6 @@ class TestSameDaySplitChanges:
         today = date.today().isoformat()
         today_snapshots = [r for r in records if r["effective_from"] == today]
 
-        # Must have exactly one snapshot for today (no duplicates)
-        assert len(today_snapshots) == 1, (
-            f"Expected 1 snapshot for today, got {len(today_snapshots)}: {today_snapshots}"
-        )
-
-        # The snapshot must contain the original A (not B or C)
-        snapshot_tids = [d["template_id"] for d in today_snapshots[0]["days"]]
-        assert all(t == tpl_a for t in snapshot_tids), (
-            f"Snapshot should contain A, got {snapshot_tids}"
-        )
+        # A/B/C all happened on A's creation day, so there is no elapsed
+        # calendar interval to archive and therefore no duplicate snapshot.
+        assert today_snapshots == []

@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from lib.split_history_migration import migrate_split_history
+
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
@@ -30,10 +32,16 @@ INDEXES = {
     ],
     "splits": [IndexModel([("user_id", ASCENDING)], name="user_id", unique=True)],
     "split_history": [
-        # Non-unique index kept for backward compatibility — the unique index below
-        # covers the same query patterns. We keep this name because drop+recreate
-        # requires a migration step that is documented separately.
+        # Kept for compatibility with databases created before Phase 1.
         IndexModel([("user_id", ASCENDING), ("effective_from", ASCENDING)], name="user_from"),
+        # Required by the same-day upsert in routers/splits.py. Without this,
+        # two racing upserts can both insert a snapshot.
+        IndexModel(
+            [("user_id", ASCENDING), ("effective_from", ASCENDING)],
+            # Preserve the name installed by the existing Phase 1 migration.
+            name="user_from_unique",
+            unique=True,
+        ),
         # Covered by queries filtering on effective_to: null (open snapshots)
         IndexModel([("user_id", ASCENDING), ("effective_to", ASCENDING)], name="user_effective_to"),
     ],
@@ -67,5 +75,7 @@ INDEXES = {
 
 async def ensure_indexes() -> None:
     await client.admin.command("ping")
+    # Repair pre-Phase-1 data before creating the new unique index.
+    await migrate_split_history(db)
     for collection, indexes in INDEXES.items():
         await db[collection].create_indexes(indexes)

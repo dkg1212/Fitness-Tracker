@@ -42,20 +42,7 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
         if d.template_id and d.template_id not in templates:
             raise HTTPException(status_code=422, detail=f"Unknown template {d.template_id}")
 
-    # ── Save a split-history snapshot before overwriting ─────────────────────
-    #
-    # Historical split baseline (MEDIUM-5):
-    # The first time a user saves a split, there is no existing config to
-    # snapshot, so no historical record is created.  This means the user's
-    # schedule history starts from their *first split change*, not from when
-    # they first configured a split.  For existing users whose original split
-    # creation date cannot be determined, we do not invent historical dates.
-    #
-    # Migration policy: if you need historical consistency for the pre-change
-    # period, manually insert a split_history record with the user's original
-    # split config and an estimated effective_from date (e.g. the date of their
-    # first workout).  This is a one-time data backfill, not an automated
-    # migration.
+    # Archive the interval that is ending before installing the new active split.
     existing = await db.splits.find_one({"user_id": user["id"]}, {"_id": 0})
     today = today_iso()
 
@@ -66,22 +53,20 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
         config_changed = existing_days != new_days
 
         if config_changed:
-            # Close out any previously-open snapshot for this user
+            active_from = existing.get("effective_from", today)
+
+            # Old buggy versions could leave an open history record. It cannot
+            # extend beyond this change, so close it while repairing the normal
+            # active-split interval below.
             await db.split_history.update_many(
-                {"user_id": user["id"], "effective_to": None},
+                {
+                    "user_id": user["id"],
+                    "effective_to": None,
+                    "effective_from": {"$ne": active_from},
+                },
                 {"$set": {"effective_to": today}},
             )
 
-            # HIGH-2 / Finding 5: Only archive a snapshot for today if one doesn't
-            # already exist.  When A → B → C happen on the same day, the first
-            # change (A → B) archives config A.  The second change (B → C) must
-            # NOT overwrite snapshot A with B.
-            #
-            # Concurrency safety: use update_one with upsert=True and $setOnInsert
-            # so that two simultaneous requests racing to create today's snapshot
-            # are handled atomically by MongoDB — only the first insert wins,
-            # the second is a no-op.  This avoids the TOCTOU race in
-            # find_one → insert_one.
             existing_split_days = []
             for ed in sorted(existing.get("days", []), key=lambda x: x["weekday"]):
                 tid = ed.get("template_id")
@@ -94,24 +79,28 @@ async def put_split(body: SplitIn, user: dict = Depends(current_user)):
                     )
                 )
             snapshot = SplitHistoryRecord(
-                effective_from=today,
-                effective_to=None,
+                effective_from=active_from,
+                effective_to=today,
                 split_name=existing.get("name", "My Split"),
                 days=existing_split_days,
             )
-            # $setOnInsert only runs when a document is actually inserted (upsert).
-            # If a document already exists for (user_id, effective_from=today),
-            # the operation is a no-op — preserving the original config A.
-            await db.split_history.update_one(
-                {"user_id": user["id"], "effective_from": today},
-                {"$setOnInsert": {**snapshot.model_dump(), "user_id": user["id"]}},
-                upsert=True,
-            )
+            # A configuration changed on the day it was first created has no
+            # calendar-day interval to archive. Avoid a zero-length snapshot;
+            # this also keeps A → B → C on one day from creating duplicates.
+            if active_from < today:
+                await db.split_history.update_one(
+                    {"user_id": user["id"], "effective_from": active_from},
+                    {"$set": {**snapshot.model_dump(), "user_id": user["id"]}},
+                    upsert=True,
+                )
 
     # Save the new active split
     days = [{"weekday": d.weekday, "template_id": d.template_id} for d in sorted(body.days, key=lambda x: x.weekday)]
+    fields = {"name": body.name, "days": days, "user_id": user["id"]}
+    if not existing or config_changed:
+        fields["effective_from"] = today
     await db.splits.update_one(
-        {"user_id": user["id"]}, {"$set": {"name": body.name, "days": days, "user_id": user["id"]}}, upsert=True
+        {"user_id": user["id"]}, {"$set": fields}, upsert=True
     )
     return await load_split(user["id"], templates)
 

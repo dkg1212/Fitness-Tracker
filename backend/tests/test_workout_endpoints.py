@@ -117,26 +117,19 @@ class TestFinishValidation:
         assert resp2.status_code == 409
 
 
-# ── PUT revision tracking (unconditional last-write-wins) ────────────────────
+# ── Atomic revision protection on PUT ────────────────────────────────────────
 
 class TestPutRevisionProtection:
-    async def test_put_always_succeeds_regardless_of_revision(self, client):
-        """
-        PUT is unconditional — the last write wins.
-        Sending an older revision still succeeds (autosave safety).
-        The server increments the revision on every PUT regardless.
-        """
+    async def test_put_rejects_stale_revision(self, client):
         w = await _start_workout(client)
         wid = w["id"]
 
-        # First save → revision becomes 1
         r1 = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
         assert r1.status_code == 200
         assert r1.json()["revision"] == 1
 
-        # Second save with same revision=0 (simulates race condition) → still 200
         r2 = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
-        assert r2.status_code == 200  # NOT 409 — PUT is unconditional
+        assert r2.status_code == 409
 
     async def test_put_increments_revision_sequentially(self, client):
         w = await _start_workout(client)
@@ -176,15 +169,10 @@ class TestPutRevisionProtection:
         resp = await client.put("/api/workouts/legacy-wk", json=_update_body([_exercise_payload()], revision=0))
         assert resp.status_code == 200
         assert resp.json()["revision"] == 1
-        assert resp.json()["revision"] == 1
 
-    async def test_concurrent_puts_both_succeed(self, client):
+    async def test_concurrent_puts_allow_exactly_one_save(self, client):
         """
-        Two concurrent PUT requests — since PUT is unconditional, both succeed.
-        The last write wins. No 409 from autosave.
-
-        Note: mongomock serialises these so they run sequentially in tests,
-        but in real MongoDB both would succeed since there's no revision check.
+        Two concurrent requests with one revision cannot both overwrite data.
         """
         w = await _start_workout(client)
         wid = w["id"]
@@ -194,9 +182,41 @@ class TestPutRevisionProtection:
             client.put(f"/api/workouts/{wid}", json=body),
             client.put(f"/api/workouts/{wid}", json=body),
         )
-        # Both must succeed — PUT is unconditional
-        assert r1.status_code == 200, f"r1 failed: {r1.text}"
-        assert r2.status_code == 200, f"r2 failed: {r2.text}"
+        assert sorted([r1.status_code, r2.status_code]) == [200, 409]
+
+
+class TestWorkoutStartConcurrency:
+    async def test_duplicate_key_from_concurrent_start_returns_409(self, client, monkeypatch):
+        """The database unique index race must not leak as a 500 response."""
+        from pymongo.errors import DuplicateKeyError
+        import routers.workouts as workouts_mod
+
+        async def raise_duplicate(*_args, **_kwargs):
+            raise DuplicateKeyError("duplicate active workout")
+
+        class WorkoutsProxy:
+            def __init__(self, collection):
+                self.collection = collection
+
+            async def insert_one(self, *_args, **_kwargs):
+                await raise_duplicate()
+
+            def __getattr__(self, name):
+                return getattr(self.collection, name)
+
+        class DbProxy:
+            def __init__(self, database):
+                self.workouts = WorkoutsProxy(database.workouts)
+
+            def __getattr__(self, name):
+                return getattr(self._database, name)
+
+        proxy = DbProxy(workouts_mod.db)
+        proxy._database = workouts_mod.db
+        monkeypatch.setattr(workouts_mod, "db", proxy)
+        response = await client.post("/api/workouts", json={"template_id": None, "name": None})
+        assert response.status_code == 409
+        assert "active workout" in response.json()["detail"]
 
 
 # ── Atomic revision protection on finish (Finding 2) ─────────────────────────
