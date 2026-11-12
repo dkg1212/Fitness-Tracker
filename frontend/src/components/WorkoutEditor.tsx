@@ -359,13 +359,28 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
           <DialogHeader>
             <DialogTitle className="font-heading text-xl font-bold">Finish workout?</DialogTitle>
             <DialogDescription>
-              {stats.sets} working sets · {fmtVolume(stats.volume)} kg volume.
-              {stats.total > stats.sets ? " Sets you didn't tick off will be discarded." : ""}
+              {stats.sets > 0
+                ? <>
+                    {stats.sets} working set{stats.sets !== 1 ? "s" : ""} · {fmtVolume(stats.volume)} kg volume.
+                    {stats.total > stats.sets ? " Sets you didn't tick off will be discarded." : ""}
+                  </>
+                : "No sets completed yet. Tick off at least one set before finishing, or discard this session."}
             </DialogDescription>
           </DialogHeader>
+          {stats.sets === 0 && (
+            <p className="rounded-lg border border-amber-warn/30 bg-amber-warn/10 px-4 py-3 text-sm text-amber-warn" data-testid="finish-no-sets-hint">
+              💡 Mark a set as done by tapping the checkmark next to it.
+            </p>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFinishOpen(false)} data-testid="finish-cancel-button">Keep training</Button>
-            <Button onClick={() => finishM.mutate()} disabled={finishM.isPending} data-testid="finish-confirm-button">
+            <Button variant="outline" onClick={() => setFinishOpen(false)} data-testid="finish-cancel-button">
+              {stats.sets === 0 ? "Go back" : "Keep training"}
+            </Button>
+            <Button
+              onClick={() => finishM.mutate()}
+              disabled={finishM.isPending || stats.sets === 0}
+              data-testid="finish-confirm-button"
+            >
               {finishM.isPending ? "Saving…" : "Finish & save"}
             </Button>
           </DialogFooter>

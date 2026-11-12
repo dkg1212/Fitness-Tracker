@@ -123,6 +123,8 @@ export function useStartWorkout() {
       qc.setQueryData(["workout", "active"], w);
       // Invalidate today so "completed_today" re-evaluates
       qc.invalidateQueries({ queryKey: ["today"] });
+      // Navigate to the active logger immediately after the workout is created
+      navigate("/workout/active");
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
