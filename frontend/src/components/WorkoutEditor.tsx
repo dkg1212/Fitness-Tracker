@@ -43,7 +43,7 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { userId } = useAuth();
-  const { draft, update, sync, restored, flush } = useAutosaveWorkout(initial, userId);
+  const { draft, update, sync, restored, flush, getLatest } = useAutosaveWorkout(initial, userId);
   const { rest, start: startRest, adjust, skip } = useRestTimer();
   const isEdit = draft.status === "completed";
 
@@ -83,7 +83,22 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
   };
 
   const finishM = useMutation({
-    mutationFn: () => apiPost<FinishResult>(`/workouts/${draft.id}/finish`, toUpdate(draft)),
+    mutationFn: async () => {
+      // Flush any pending autosave first so the server has the latest revision.
+      // This also ensures draftRef.current has the revision the server just assigned.
+      const flushResult = await flush();
+      if (flushResult === "conflict") {
+        throw new ApiError(409, "This workout was updated elsewhere. Reload to sync before finishing.");
+      }
+      if (flushResult === "offline") {
+        throw new ApiError(0, "You're offline — your workout is saved locally. Reconnect first.");
+      }
+      // Use getLatest() not `draft` — draftRef.current has the correct revision
+      // updated by the successful autosave flush above, while `draft` (React state)
+      // may still hold the stale revision=0 from before the last autosave completed.
+      const latest = getLatest();
+      return apiPost<FinishResult>(`/workouts/${latest.id}/finish`, toUpdate(latest));
+    },
     onSuccess: (r) => {
       clearLocalDraft(draft.id, userId);
       skip();
@@ -94,6 +109,8 @@ export default function WorkoutEditor({ initial }: { initial: Workout }) {
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
         toast.error("Workout updated elsewhere — reload to sync before finishing.", { duration: 6000 });
+      } else if (err instanceof ApiError && err.status === 0) {
+        toast.error("You're offline. Reconnect and try again — your sets are saved locally.");
       } else {
         toast.error("Couldn't finish — your workout is saved locally. Try again when online.");
       }

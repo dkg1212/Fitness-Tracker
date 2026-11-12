@@ -140,24 +140,26 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
     });
   }, []);
 
-  const flush = useCallback(async (): Promise<void> => {
+  const flush = useCallback(async (): Promise<"ok" | "conflict" | "offline" | "error"> => {
     window.clearTimeout(timerRef.current);
     if (inflightRef.current) {
       await inflightRef.current;
       if (dirtyRef.current) return flush();
-      return;
+      return "ok";
     }
-    if (!dirtyRef.current) return;
+    if (!dirtyRef.current) return "ok";
     // Finding 3: never auto-flush while in conflict state.
-    if (syncRef.current === "conflict") return;
+    if (syncRef.current === "conflict") return "conflict";
     if (!navigator.onLine) {
       setSyncBoth("offline");
-      return;
+      return "offline";
     }
 
     const snapshot = draftRef.current;
     dirtyRef.current = false;
     setSyncBoth("saving");
+
+    let flushResult: "ok" | "conflict" | "offline" | "error" = "ok";
 
     const run = (async () => {
       try {
@@ -181,11 +183,13 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
           // Finding 3: conflict — preserve draft, enter conflict state, do NOT retry.
           dirtyRef.current = true;
           setSyncBoth("conflict");
+          flushResult = "conflict";
           return; // no retry scheduled
         }
         // Transient error — retry after 5 s.
         dirtyRef.current = true;
         setSyncBoth(navigator.onLine ? "error" : "offline");
+        flushResult = navigator.onLine ? "error" : "offline";
         window.clearTimeout(retryRef.current);
         retryRef.current = window.setTimeout(() => void flush(), 5000);
       }
@@ -199,6 +203,8 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
     if (dirtyRef.current && navigator.onLine && syncRef.current !== "conflict") {
       timerRef.current = window.setTimeout(() => void flush(), 600);
     }
+
+    return flushResult;
   }, [userId, setSyncBoth]);
 
   const update = useCallback(
@@ -237,5 +243,5 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
     };
   }, [flush, initial.id, initial.status, initial.updated_at, userId, setSyncBoth]);
 
-  return { draft, update, sync, restored: !!restored, flush };
+  return { draft, update, sync, restored: !!restored, flush, getLatest: () => draftRef.current };
 }
