@@ -137,69 +137,35 @@ async def get_workout(id: str, user: dict = Depends(current_user)):
 @router.put("/{id}", response_model=Workout)
 async def update_workout(id: str, body: WorkoutUpdate, user: dict = Depends(current_user)):
     """
-    Save autosave edits with optimistic concurrency protection.
+    Save autosave edits.
 
-    If the client supplies a `revision`, the update is applied atomically only
-    when the stored revision matches.  Using a single find_one_and_update with
-    the revision in the filter guarantees that exactly one of two concurrent
-    requests with the same revision succeeds — the other will find no matching
-    document and return 409.
+    The autosave PUT is intentionally unconditional — the last write wins.
+    This is correct for the autosave use-case: each PUT from the same browser
+    tab carries the full current state of the workout, so the latest PUT always
+    has the most up-to-date data.
 
-    If `revision` is omitted (legacy clients / existing production documents
-    that have no revision field yet), the update is applied unconditionally so
-    backward compatibility is preserved.
+    Revision is still tracked and incremented on every PUT so the finish
+    endpoint can detect genuine stale-finish scenarios (e.g. a different tab
+    or device finishing an outdated version of the workout).
+
+    We do NOT reject autosave PUTs based on revision because that causes
+    spurious 409 conflicts when the debounce timer fires before a previous
+    PUT's response has been received and applied to draftRef.current.
     """
     fields = _update_fields(body)
     fields["updated_at"] = utcnow()
+    # Increment revision unconditionally — finish endpoint uses this to guard
+    # against finishing with stale exercise data.
+    fields["revision"] = (body.revision or 0) + 1
 
-    if body.revision is not None:
-        # Atomic conditional update: match id + user + exact revision.
-        # Uses update_one (not find_one_and_update) to avoid a mongomock bug
-        # where find_one_and_update with projection={'_id':0} returns None even
-        # on a successful update.  The atomicity guarantee in real MongoDB comes
-        # from MongoDB's document-level write locking — the entire update_one
-        # operation is atomic.
-        expected_rev = body.revision
-        new_rev = expected_rev + 1
-        fields["revision"] = new_rev
-
-        # Build the filter: match the exact revision, or a missing revision
-        # field when the client sends 0 (backward-compat with pre-revision docs).
-        revision_filter: dict
-        if expected_rev == 0:
-            revision_filter = {
-                "$or": [
-                    {"revision": 0},
-                    {"revision": {"$exists": False}},
-                ]
-            }
-        else:
-            revision_filter = {"revision": expected_rev}
-
-        result = await db.workouts.update_one(
-            {"id": id, "user_id": user["id"], **revision_filter},
-            {"$set": fields},
-        )
-        if result.matched_count == 0:
-            exists = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 1})
-            if not exists:
-                raise HTTPException(status_code=404, detail="Workout not found")
-            raise HTTPException(
-                status_code=409,
-                detail="This workout was updated elsewhere. Reload to get the latest version.",
-            )
-        doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
-        return Workout(**doc)
-    else:
-        # No revision supplied — unconditional update (backward-compatible).
-        result = await db.workouts.update_one(
-            {"id": id, "user_id": user["id"]},
-            {"$set": fields},
-        )
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Workout not found")
-        doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
-        return Workout(**doc)
+    result = await db.workouts.update_one(
+        {"id": id, "user_id": user["id"]},
+        {"$set": fields},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    doc = await db.workouts.find_one({"id": id, "user_id": user["id"]}, {"_id": 0})
+    return Workout(**doc)
 
 
 @router.post("/{id}/finish", response_model=FinishResult)

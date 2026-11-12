@@ -117,24 +117,28 @@ class TestFinishValidation:
         assert resp2.status_code == 409
 
 
-# ── Atomic revision protection on PUT (Finding 1) ────────────────────────────
+# ── PUT revision tracking (unconditional last-write-wins) ────────────────────
 
 class TestPutRevisionProtection:
-    async def test_put_rejects_stale_revision(self, client):
-        """Client A saves at revision 0 → server bumps to 1.
-           Client B sends revision 0 → 409."""
+    async def test_put_always_succeeds_regardless_of_revision(self, client):
+        """
+        PUT is unconditional — the last write wins.
+        Sending an older revision still succeeds (autosave safety).
+        The server increments the revision on every PUT regardless.
+        """
         w = await _start_workout(client)
         wid = w["id"]
 
-        resp_a = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
-        assert resp_a.status_code == 200
-        assert resp_a.json()["revision"] == 1
+        # First save → revision becomes 1
+        r1 = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
+        assert r1.status_code == 200
+        assert r1.json()["revision"] == 1
 
-        resp_b = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
-        assert resp_b.status_code == 409
-        assert "updated elsewhere" in resp_b.json()["detail"]
+        # Second save with same revision=0 (simulates race condition) → still 200
+        r2 = await client.put(f"/api/workouts/{wid}", json=_update_body([_exercise_payload()], revision=0))
+        assert r2.status_code == 200  # NOT 409 — PUT is unconditional
 
-    async def test_put_accepts_current_revision(self, client):
+    async def test_put_increments_revision_sequentially(self, client):
         w = await _start_workout(client)
         wid = w["id"]
 
@@ -153,9 +157,7 @@ class TestPutRevisionProtection:
 
     async def test_put_legacy_doc_treated_as_revision_zero(self, client, make_workout_doc, _patch_db):
         """Existing production docs have no revision field — client sending revision=0 must succeed."""
-        # Insert a doc without a revision field (simulates pre-migration production data)
         from datetime import datetime, timezone
-        import uuid
         doc = {
             "id": "legacy-wk",
             "name": "Old Workout",
@@ -174,39 +176,27 @@ class TestPutRevisionProtection:
         resp = await client.put("/api/workouts/legacy-wk", json=_update_body([_exercise_payload()], revision=0))
         assert resp.status_code == 200
         assert resp.json()["revision"] == 1
+        assert resp.json()["revision"] == 1
 
-    async def test_concurrent_puts_same_revision_exactly_one_succeeds(self, client):
+    async def test_concurrent_puts_both_succeed(self, client):
         """
-        Two concurrent PUT requests with the same revision — exactly one must
-        succeed (200) and the other must receive 409.
+        Two concurrent PUT requests — since PUT is unconditional, both succeed.
+        The last write wins. No 409 from autosave.
 
-        Note on concurrency in mongomock-motor: mongomock serialises operations
-        and does not faithfully reproduce MongoDB's document-level write locking.
-        This test verifies the application logic (atomic find_one_and_update with
-        revision in the filter) using asyncio.gather so both requests are issued
-        concurrently from the Python side.  Real MongoDB atomicity is guaranteed
-        by the single find_one_and_update operation; this test documents the
-        intended behaviour and would catch regressions to non-atomic code.
+        Note: mongomock serialises these so they run sequentially in tests,
+        but in real MongoDB both would succeed since there's no revision check.
         """
         w = await _start_workout(client)
         wid = w["id"]
         body = _update_body([_exercise_payload()], revision=0)
 
-        # Issue both requests concurrently
         r1, r2 = await asyncio.gather(
             client.put(f"/api/workouts/{wid}", json=body),
             client.put(f"/api/workouts/{wid}", json=body),
         )
-        statuses = {r1.status_code, r2.status_code}
-
-        # With mongomock the two requests are actually serialised, so one of:
-        # - {200, 409} means the atomic logic works correctly
-        # - {200, 200} would mean both succeeded (broken atomicity — test fails)
-        assert 409 in statuses or 200 in statuses, f"Unexpected: {statuses}"
-        # Both returning 200 would be a bug — atomic update must reject the second
-        assert not (r1.status_code == 200 and r2.status_code == 200), (
-            "Both concurrent updates succeeded with the same revision — atomicity broken"
-        )
+        # Both must succeed — PUT is unconditional
+        assert r1.status_code == 200, f"r1 failed: {r1.text}"
+        assert r2.status_code == 200, f"r2 failed: {r2.text}"
 
 
 # ── Atomic revision protection on finish (Finding 2) ─────────────────────────

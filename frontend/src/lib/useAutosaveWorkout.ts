@@ -148,8 +148,6 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
       return "ok";
     }
     if (!dirtyRef.current) return "ok";
-    // Finding 3: never auto-flush while in conflict state.
-    if (syncRef.current === "conflict") return "conflict";
     if (!navigator.onLine) {
       setSyncBoth("offline");
       return "offline";
@@ -163,14 +161,25 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
 
     const run = (async () => {
       try {
-        const revision = snapshot.revision ?? 0;
+        // Read revision from draftRef at the moment of the fetch call, not from
+        // the snapshot. This handles the case where a previous flush resolved
+        // and updated draftRef.current.revision while this flush was waiting in
+        // the inflightRef queue — using the snapshot revision would send a stale
+        // value and cause a 409 on a single-user, single-device session.
+        const revision = draftRef.current.revision ?? 0;
         const res = await apiPut<Workout>(`/workouts/${snapshot.id}`, {
           ...toUpdate(snapshot),
           revision,
         });
-        // Track the server-assigned revision so the next flush uses the right value.
+        // Update ONLY the revision field — never overwrite the whole object.
+        // The user may have made more edits while this PUT was in-flight; those
+        // edits live in draftRef.current and must not be clobbered.
         if (res && typeof res === "object" && "revision" in res) {
-          draftRef.current = { ...draftRef.current, revision: (res as Workout).revision };
+          const serverRevision = (res as Workout).revision ?? (revision + 1);
+          draftRef.current = { ...draftRef.current, revision: serverRevision };
+          // Mirror into React state so finishM.mutationFn / toUpdate(draft) also
+          // sees the latest revision without needing to call getLatest().
+          setDraft((prev) => ({ ...prev, revision: serverRevision }));
         }
         if (dirtyRef.current) {
           setSyncBoth("pending");
@@ -180,11 +189,14 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) {
-          // Finding 3: conflict — preserve draft, enter conflict state, do NOT retry.
+          // 409 from PUT: this should not happen with the unconditional backend.
+          // If it somehow does (e.g. workout was deleted), treat as transient error
+          // and retry — do NOT enter conflict state from an autosave.
           dirtyRef.current = true;
-          setSyncBoth("conflict");
-          flushResult = "conflict";
-          return; // no retry scheduled
+          setSyncBoth(navigator.onLine ? "error" : "offline");
+          window.clearTimeout(retryRef.current);
+          retryRef.current = window.setTimeout(() => void flush(), 5000);
+          return;
         }
         // Transient error — retry after 5 s.
         dirtyRef.current = true;
@@ -199,8 +211,8 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
     await run;
     inflightRef.current = null;
 
-    // Finding 3: only schedule a follow-up flush if not in conflict.
-    if (dirtyRef.current && navigator.onLine && syncRef.current !== "conflict") {
+    // Schedule a follow-up flush if more edits arrived while this PUT was in-flight.
+    if (dirtyRef.current && navigator.onLine) {
       timerRef.current = window.setTimeout(() => void flush(), 600);
     }
 
@@ -215,15 +227,9 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
       setDraft(next);
       writeStored(next, true, userId);
       writeActiveId(next, userId);
-      // Finding 3: if already in conflict, preserve that state — don't start saving.
-      setSyncBoth((prev) => {
-        if (prev === "conflict") return "conflict";
-        return navigator.onLine ? "pending" : "offline";
-      });
-      if (syncRef.current !== "conflict") {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = window.setTimeout(() => void flush(), 700);
-      }
+      setSyncBoth(navigator.onLine ? "pending" : "offline");
+      window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => void flush(), 700);
     },
     [flush, userId, setSyncBoth],
   );
@@ -231,7 +237,7 @@ export function useAutosaveWorkout(initial: Workout, userId?: string | null) {
   useEffect(() => {
     if (initial.status === "active") writeActiveId(initial, userId);
     if (dirtyRef.current) void flush();
-    const onOnline = () => { if (syncRef.current !== "conflict") void flush(); };
+    const onOnline = () => void flush();
     const onOffline = () => dirtyRef.current && setSyncBoth("offline");
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
